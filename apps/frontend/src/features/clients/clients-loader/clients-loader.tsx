@@ -4,6 +4,8 @@ import type { ClientsResponse } from '@nevis/api-contract/model'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 
+import { useI18n } from '../../../i18n/i18n-context'
+
 import { ClientsLoadError } from './clients-load-error'
 import { ClientsLoading } from './clients-loading'
 import { useDelayedFlag } from './use-delayed-flag'
@@ -26,6 +28,7 @@ export type ClientsLoaderProps = {
 // with the data when loaded. Also owns what is announced about loading: the
 // busy mark and the status line.
 export const ClientsLoader = ({ onRetry, children }: ClientsLoaderProps) => {
+    const { messages } = useI18n()
     const query = useGetClients({ query: { select: selectData } })
     // set only by a successful Retry: the first load never says "loaded"
     const [retryLoaded, setRetryLoaded] = useState(false)
@@ -54,9 +57,9 @@ export const ClientsLoader = ({ onRetry, children }: ClientsLoaderProps) => {
     }
 
     const statusText = showLoadingNotice
-        ? 'Loading clients...'
+        ? messages.load.loading
         : retryLoaded
-          ? 'Clients loaded'
+          ? messages.load.loaded
           : ''
 
     return (

@@ -72,16 +72,19 @@ export const totalAt = (
 
 // "Jul 2024: Existing clients 331, New organic 2, New paid 1, Total 334".
 // One text for the tooltip and for screen readers, so both say the same.
+// Numbers come formatted by the caller (locale); the ": " / ", " separators
+// are fixed (see README, i18n).
 export const describeCategory = (
     category: string,
     series: readonly BarChartSeries[],
     index: number,
-    totalLabel: string
+    totalLabel: string,
+    formatValue: (value: number) => string
 ): string => {
     const parts = series.map(
-        (item) => `${item.name} ${String(valueAt(item, index))}`
+        (item) => `${item.name} ${formatValue(valueAt(item, index))}`
     )
-    return `${category}: ${[...parts, `${totalLabel} ${String(totalAt(series, index))}`].join(', ')}`
+    return `${category}: ${[...parts, `${totalLabel} ${formatValue(totalAt(series, index))}`].join(', ')}`
 }
 
 // Each bar looks like one block: the lowest and the highest non-zero part get
@@ -208,7 +211,8 @@ export const tooltipHtml = (
     category: string,
     series: readonly BarChartSeries[],
     index: number,
-    totalLabel: string
+    totalLabel: string,
+    formatValue: (value: number) => string
 ): string => {
     const row = (label: string, value: number, color?: string) =>
         `<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;min-width:160px">` +
@@ -216,7 +220,7 @@ export const tooltipHtml = (
         (color === undefined
             ? ''
             : `<span style="width:8px;height:8px;border-radius:2px;background:${escapeHtml(color)}"></span>`) +
-        `${escapeHtml(label)}</span><span>${String(value)}</span></div>`
+        `${escapeHtml(label)}</span><span>${escapeHtml(formatValue(value))}</span></div>`
     return (
         `<div style="font-weight:500;margin-bottom:4px">${escapeHtml(category)}</div>` +
         series

@@ -15,6 +15,8 @@ export type BarChartProps = {
     yAxis: { max: number; step: number }
     // keyboard hint, read with the chart
     description: string
+    // numbers in the tooltip, the value text and the data table (locale)
+    formatValue?: (value: number) => string
     labels: {
         // accessible name of the chart, e.g. "Clients per month, Feb 2024 to Jan 2025"
         chart: string
@@ -34,6 +36,7 @@ export const BarChart = ({
     series,
     yAxis,
     description,
+    formatValue = String,
     labels,
 }: BarChartProps) => {
     const descriptionId = useId()
@@ -52,10 +55,11 @@ export const BarChart = ({
                         categories[index] ?? '',
                         series,
                         index,
-                        labels.total
+                        labels.total,
+                        formatValue
                     ),
             }),
-        [categories, series, yAxis, reducedMotion, labels.total]
+        [categories, series, yAxis, reducedMotion, labels.total, formatValue]
     )
 
     const keyboard = useCategoryKeyboard({
@@ -88,7 +92,8 @@ export const BarChart = ({
                     categories[current] ?? '',
                     series,
                     current,
-                    labels.total
+                    labels.total,
+                    formatValue
                 )}
                 onKeyDown={keyboard.onKeyDown}
                 onFocus={keyboard.onFocus}
@@ -112,6 +117,7 @@ export const BarChart = ({
                 totalLabel={labels.total}
                 categories={categories}
                 series={series}
+                formatValue={formatValue}
             />
         </div>
     )

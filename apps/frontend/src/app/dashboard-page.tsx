@@ -2,6 +2,7 @@ import { useRef } from 'react'
 
 import { ClientsDashboard } from '../features/clients/clients-dashboard/clients-dashboard'
 import { ClientsLoader } from '../features/clients/clients-loader/clients-loader'
+import { useI18n } from '../i18n/i18n-context'
 import { Heading } from '../ui/heading/heading'
 import { Page } from '../ui/page/page'
 
@@ -26,11 +27,12 @@ const focusUntilBlur = (element: HTMLElement | null) => {
 
 // page layout: heading, then the clients content once loaded
 export const DashboardPage = () => {
+    const { messages } = useI18n()
     const headingRef = useRef<HTMLHeadingElement>(null)
     return (
         <Page>
             <Heading level={1} ref={headingRef}>
-                Clients
+                {messages.page.title}
             </Heading>
             <ClientsLoader
                 onRetry={() => {

@@ -111,6 +111,21 @@ export default defineConfig(
                             from: './apps/frontend/src/app',
                             message: 'app/ composes features, not the reverse',
                         },
+                        {
+                            target: './apps/frontend/src/ui',
+                            from: './apps/frontend/src/i18n',
+                            message:
+                                'ui/ gets its text as props: messages are read in features/ and app/',
+                        },
+                        {
+                            target: './apps/frontend/src/i18n',
+                            from: [
+                                './apps/frontend/src/features',
+                                './apps/frontend/src/app',
+                            ],
+                            message:
+                                'i18n/ is a base layer: it imports no features or app',
+                        },
                     ],
                 },
             ],

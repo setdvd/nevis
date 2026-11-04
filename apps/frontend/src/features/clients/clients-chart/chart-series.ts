@@ -1,6 +1,8 @@
 import type { Company } from '@nevis/api-contract/model'
 
-export const EXISTING_CLIENTS = 'Existing clients'
+// Name of the stored channel that is replaced by the derived series: data,
+// matched as stored, not display text (the label comes from the messages).
+const EXISTING_CHANNEL = 'Existing clients'
 
 // Same hex as --color-series-* in index.css (checked in the test): ECharts
 // needs real colours, it cannot resolve CSS variables.
@@ -16,10 +18,10 @@ export const CHANNEL_COLORS = [
 
 const AXIS_STEP = 100
 
-export type ChartSeries = {
-    name: string
-    values: readonly number[]
-}
+// the derived bottom series, or a channel by its name from the data
+export type ChartSeries =
+    | { kind: 'existing'; values: readonly number[] }
+    | { kind: 'channel'; name: string; values: readonly number[] }
 
 const addValues = (
     sum: readonly number[],
@@ -41,7 +43,7 @@ export const toChartSeries = (company: Company): ChartSeries[] => {
         .flatMap((branch) => branch.employees ?? [])
         .flatMap((advisor) => advisor.channels ?? [])
     for (const channel of channels) {
-        if (channel.name !== EXISTING_CLIENTS) {
+        if (channel.name !== EXISTING_CHANNEL) {
             sums.set(
                 channel.name,
                 addValues(sums.get(channel.name) ?? zeros, channel.values)
@@ -53,8 +55,12 @@ export const toChartSeries = (company: Company): ChartSeries[] => {
         Math.max(0, value - (newClients[index] ?? 0))
     )
     return [
-        { name: EXISTING_CLIENTS, values: existing },
-        ...[...sums].map(([name, values]) => ({ name, values })),
+        { kind: 'existing', values: existing },
+        ...[...sums].map(([name, values]) => ({
+            kind: 'channel' as const,
+            name,
+            values,
+        })),
     ]
 }
 
@@ -74,8 +80,8 @@ export const yAxisFor = (maxTotal: number): { max: number; step: number } => ({
 // Existing: its own colour; other channels: the palette in order of the series
 export const seriesColors = (series: readonly ChartSeries[]): string[] => {
     let next = 0
-    return series.map(({ name }) => {
-        if (name === EXISTING_CLIENTS) {
+    return series.map(({ kind }) => {
+        if (kind === 'existing') {
             return EXISTING_COLOR
         }
         const color = CHANNEL_COLORS[next % CHANNEL_COLORS.length]

@@ -13,8 +13,15 @@ import {
     toChartSeries,
     yAxisFor,
 } from './chart-series'
+import type { ChartSeries } from './chart-series'
 
 const { company } = clientsResponse
+
+// what the legend would say (the existing label comes from the messages)
+const names = (list: readonly ChartSeries[]) =>
+    list.map((item) =>
+        item.kind === 'existing' ? 'Existing clients' : item.name
+    )
 const series = toChartSeries(company)
 
 const at = (monthIndex: number) =>
@@ -47,7 +54,7 @@ const same = (value: number) => company.values.map(() => value)
 
 describe('toChartSeries on the delivered data', () => {
     it('gives Existing clients first, then the channels in data order', () => {
-        expect(series.map(({ name }) => name)).toEqual([
+        expect(names(series)).toEqual([
             'Existing clients',
             'New organic',
             'New paid',
@@ -80,7 +87,7 @@ describe('toChartSeries on other data', () => {
             ])
         )
 
-        expect(extra.map(({ name }) => name)).toEqual([
+        expect(names(extra)).toEqual([
             'Existing clients',
             'New organic',
             'New paid',
@@ -95,20 +102,14 @@ describe('toChartSeries on other data', () => {
             withAnnaChannels([{ name: 'New organic', values: same(2) }])
         )
 
-        expect(noPaid.map(({ name }) => name)).toEqual([
-            'Existing clients',
-            'New organic',
-        ])
+        expect(names(noPaid)).toEqual(['Existing clients', 'New organic'])
         expect(noPaid[0]?.values[0]).toBe(248)
     })
 
     it('sums a channel over all advisors', () => {
         // example data: only Ada has channels; Referral 2 a month
         const example = toChartSeries(exampleResponse.company)
-        expect(example.map(({ name }) => name)).toEqual([
-            'Existing clients',
-            'Referral',
-        ])
+        expect(names(example)).toEqual(['Existing clients', 'Referral'])
         expect(example[0]?.values[0]).toBe(28)
     })
 
@@ -132,9 +133,7 @@ describe('toChartSeries on other data', () => {
             })),
         })
 
-        expect(none).toEqual([
-            { name: 'Existing clients', values: company.values },
-        ])
+        expect(none).toEqual([{ kind: 'existing', values: company.values }])
     })
 })
 
@@ -156,8 +155,15 @@ describe('seriesColors', () => {
     })
 
     it('keeps the Existing colour and takes the palette in order for others', () => {
-        const names = ['Existing clients', 'A', 'B', 'C', 'D', 'E', 'F', 'G']
-        const colors = seriesColors(names.map((name) => ({ name, values: [] })))
+        const list: ChartSeries[] = [
+            { kind: 'existing', values: [] },
+            ...['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name) => ({
+                kind: 'channel' as const,
+                name,
+                values: [],
+            })),
+        ]
+        const colors = seriesColors(list)
 
         expect(colors[0]).toBe(EXISTING_COLOR)
         expect(colors.slice(1)).toEqual([...CHANNEL_COLORS, CHANNEL_COLORS[0]])

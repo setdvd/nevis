@@ -7,6 +7,7 @@ export type BarChartTableProps = {
     totalLabel: string
     categories: readonly string[]
     series: readonly BarChartSeries[]
+    formatValue: (value: number) => string
 }
 
 // The chart's numbers for screen readers: one row per category, one column
@@ -17,6 +18,7 @@ export const BarChartTable = ({
     totalLabel,
     categories,
     series,
+    formatValue,
 }: BarChartTableProps) => (
     <table className="sr-only">
         <caption>{caption}</caption>
@@ -36,9 +38,11 @@ export const BarChartTable = ({
                 <tr key={category}>
                     <th scope="row">{category}</th>
                     {series.map((item) => (
-                        <td key={item.name}>{valueAt(item, index)}</td>
+                        <td key={item.name}>
+                            {formatValue(valueAt(item, index))}
+                        </td>
                     ))}
-                    <td>{totalAt(series, index)}</td>
+                    <td>{formatValue(totalAt(series, index))}</td>
                 </tr>
             ))}
         </tbody>

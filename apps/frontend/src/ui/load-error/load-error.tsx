@@ -4,6 +4,7 @@ import { Button } from '../button/button'
 
 export type LoadErrorProps = {
     message: string
+    retryLabel: string
     onRetry: () => void
     // a page with several errors announces only one of them
     announce?: boolean
@@ -11,6 +12,7 @@ export type LoadErrorProps = {
 
 export const LoadError = ({
     message,
+    retryLabel,
     onRetry,
     announce = false,
 }: LoadErrorProps) => (
@@ -22,6 +24,6 @@ export const LoadError = ({
             className="text-muted"
         />
         <p role={announce ? 'alert' : undefined}>{message}</p>
-        <Button onPress={onRetry}>Retry</Button>
+        <Button onPress={onRetry}>{retryLabel}</Button>
     </div>
 )

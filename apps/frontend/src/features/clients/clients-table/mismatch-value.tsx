@@ -1,3 +1,4 @@
+import { useI18n } from '../../../i18n/i18n-context'
 import type { SumMismatch } from '../data-issues'
 
 export type MismatchValueProps = {
@@ -8,7 +9,12 @@ export type MismatchValueProps = {
 // unchanged, with a marker - a dot, a tooltip on hover, the full note while
 // the cell has keyboard focus, and the same note for screen readers.
 export const MismatchValue = ({ mismatch }: MismatchValueProps) => {
-    const note = `Stored ${String(mismatch.stored)}, children sum to ${String(mismatch.childrenSum)}`
+    const { messages, formatNumber } = useI18n()
+    const stored = formatNumber(mismatch.stored)
+    const note = messages.table.mismatch(
+        stored,
+        formatNumber(mismatch.childrenSum)
+    )
     return (
         <span
             className="relative inline-flex items-center gap-1.5"
@@ -18,7 +24,7 @@ export const MismatchValue = ({ mismatch }: MismatchValueProps) => {
                 aria-hidden="true"
                 className="size-1.5 rounded-full bg-[#c2410c] forced-colors:bg-[CanvasText]"
             />
-            {mismatch.stored}
+            {stored}
             <span className="sr-only">{`, ${note}`}</span>
             <span
                 aria-hidden="true"

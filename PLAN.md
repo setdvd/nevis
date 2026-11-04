@@ -179,6 +179,11 @@ nevis/
         └── src/
             ├── main.tsx       (P0)  root render
             ├── index.css      (P0)  Tailwind + design tokens (@theme)
+            ├── i18n/
+            │   ├── messages.ts            Messages type: every user-facing text, by place
+            │   ├── en.ts                  the English catalog
+            │   ├── i18n-context.ts        createI18n, useI18n (locale, messages, formatNumber, formatMonth)
+            │   └── i18n-provider.tsx      I18nProvider (also sets <html lang> and the title)
             ├── app/
             │   ├── providers.tsx          QueryClient defaults
             │   ├── dashboard-page.tsx     layout: heading + ClientsLoader + ClientsDashboard
@@ -221,6 +226,7 @@ Conventions: kebab-case file names, one folder per component, named exports only
 
 - **Load state uses TanStack Query types only** (`UseQueryResult`, `query.status`, `query.data`, `query.error`). No own wrapper type such as `Loadable`.
 - **Single responsibility** (review note, applied to all components): a data Loader (`ClientsLoader`) only fetches and shows loading / error; render components (cards, table, chart) take plain data props; state and side effects live in named hooks (`useExpandedRows`, `useDataIssues`, `useCategoryKeyboard`, `useNoArrowScroll`, `useDelayedFlag`); a part with its own look gets its own component (`MismatchValue`, `BarChartPlot`). Stories therefore need no network or query client.
+- **All copy in `src/i18n/`** (review note "move all copy and prepare for i18n"): `Messages` type + `en` catalog + `I18nProvider` / `useI18n()` (locale, messages, `formatNumber`, `formatMonth` via `Intl`); `ui/` gets text as props and may not import `i18n/` (ESLint zone); logic returns codes (`loadErrorReason` -> `LoadErrorReason`, chart series `kind: 'existing' | 'channel'`), the catalog turns them into words; `formatMonth` in `utils` takes a locale.
 - **No `notReachable` / `assertNever` helpers.** A `switch` over a union lists every case and has no `default`; `@typescript-eslint/switch-exhaustiveness-check` reports a missing case.
 
 ## 5. Data contract

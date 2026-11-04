@@ -8,6 +8,7 @@ const meta = preview.meta({
     component: LoadError,
     args: {
         message: 'Could not load clients. Server error (500).',
+        retryLabel: 'Retry',
         onRetry: fn(),
     },
 })

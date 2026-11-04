@@ -1,28 +1,24 @@
 import { InvalidDataError } from '@nevis/api-contract/http'
 
-// short reason for the failures we can tell apart; undefined for anything else
-export const describeLoadError = (error: Error): string | undefined => {
+import type { LoadErrorReason } from '../../i18n/messages'
+
+// Why loading failed, as far as we can tell; undefined for anything else. A
+// code, not text: the messages turn it into words (i18n/en.ts).
+export const loadErrorReason = (error: Error): LoadErrorReason | undefined => {
     // AbortSignal.timeout in the generated query options
     if (error.name === 'TimeoutError') {
-        return 'The request timed out.'
+        return { kind: 'timeout' }
     }
     // fetch rejects with TypeError when the request never got an answer
     if (error instanceof TypeError) {
-        return 'Network error.'
+        return { kind: 'network' }
     }
     // generated client: non-2xx answers carry the HTTP status
     if ('status' in error && typeof error.status === 'number') {
-        return `Server error (${String(error.status)}).`
+        return { kind: 'server', status: error.status }
     }
     if (error instanceof InvalidDataError) {
-        return 'The data was not valid.'
+        return { kind: 'invalidData' }
     }
     return undefined
-}
-
-export const loadErrorMessage = (error: Error): string => {
-    const reason = describeLoadError(error)
-    return reason === undefined
-        ? 'Could not load clients.'
-        : `Could not load clients. ${reason}`
 }

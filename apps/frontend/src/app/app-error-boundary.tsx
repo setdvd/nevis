@@ -1,6 +1,8 @@
 import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 
+import { I18nContext } from '../i18n/i18n-context'
+import type { I18n } from '../i18n/i18n-context'
 import { Button } from '../ui/button/button'
 import { Heading } from '../ui/heading/heading'
 import { Page } from '../ui/page/page'
@@ -19,6 +21,10 @@ export class AppErrorBoundary extends Component<
     AppErrorBoundaryProps,
     AppErrorBoundaryState
 > {
+    // outside the providers: gets the context default (English)
+    static override contextType = I18nContext
+    declare context: I18n
+
     override state: AppErrorBoundaryState = { failed: false }
 
     static getDerivedStateFromError(): AppErrorBoundaryState {
@@ -35,13 +41,15 @@ export class AppErrorBoundary extends Component<
         }
         return (
             <Page align="start">
-                <Heading level={1}>Something went wrong.</Heading>
+                <Heading level={1}>
+                    {this.context.messages.crash.message}
+                </Heading>
                 <Button
                     onPress={() => {
                         window.location.reload()
                     }}
                 >
-                    Reload
+                    {this.context.messages.crash.reload}
                 </Button>
             </Page>
         )

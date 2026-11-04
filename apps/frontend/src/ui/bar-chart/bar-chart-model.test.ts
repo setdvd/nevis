@@ -177,7 +177,7 @@ describe('toBarOption with the minimum part height', () => {
 
 describe('describeCategory', () => {
     it('reads the category, every series and the total', () => {
-        expect(describeCategory('Feb', SERIES, 1, 'Total')).toBe(
+        expect(describeCategory('Feb', SERIES, 1, 'Total', String)).toBe(
             'Feb: Base 20, Middle 5, Top 0, Total 25'
         )
     })
@@ -185,10 +185,24 @@ describe('describeCategory', () => {
 
 describe('tooltipHtml', () => {
     it('lists every series and the total last', () => {
-        const html = tooltipHtml('Feb', SERIES, 1, 'Total')
+        const html = tooltipHtml('Feb', SERIES, 1, 'Total', String)
         expect(html.indexOf('Base')).toBeLessThan(html.indexOf('Top'))
         expect(html.lastIndexOf('Total')).toBeGreaterThan(html.indexOf('Top'))
         expect(html).toContain('>25<')
+    })
+
+    it('formats the numbers with the given formatter', () => {
+        const big: BarChartSeries[] = [
+            { name: 'A', values: [1234], color: '#111111' },
+            { name: 'B', values: [5000], color: '#222222' },
+        ]
+        const de = new Intl.NumberFormat('de-DE')
+        expect(
+            describeCategory('Mai', big, 0, 'Summe', (n) => de.format(n))
+        ).toBe('Mai: A 1.234, B 5.000, Summe 6.234')
+        expect(
+            tooltipHtml('Mai', big, 0, 'Summe', (n) => de.format(n))
+        ).toContain('>6.234<')
     })
 
     it('escapes names from data', () => {
@@ -202,7 +216,8 @@ describe('tooltipHtml', () => {
                 },
             ],
             0,
-            'Total'
+            'Total',
+            String
         )
         expect(html).not.toContain('<img')
         expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')

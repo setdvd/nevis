@@ -30,7 +30,7 @@ afterEach(() => {
 
 describe('formatMonth', () => {
     it('formats the data months', () => {
-        expect(DATA_MONTHS.map(formatMonth)).toEqual([
+        expect(DATA_MONTHS.map((month) => formatMonth(month))).toEqual([
             'Feb 2024',
             'Mar 2024',
             'Apr 2024',
@@ -44,6 +44,13 @@ describe('formatMonth', () => {
             'Dec 2024',
             'Jan 2025',
         ])
+    })
+
+    it('names the month in the given locale', () => {
+        expect(formatMonth('2024-05', 'de-DE')).toBe('Mai 2024')
+        expect(formatMonth('2024-02', 'fr-FR')).toBe('févr. 2024')
+        // default stays en-US
+        expect(formatMonth('2024-05')).toBe('May 2024')
     })
 
     it('keeps the year as written', () => {
@@ -76,9 +83,9 @@ describe('formatMonth', () => {
             if (timeZone === 'America/New_York') {
                 expect(new Date(Date.UTC(2024, 1, 1)).getDate()).toBe(31)
             }
-            expect(DATA_MONTHS.map(fresh.formatMonth)).toEqual(
-                DATA_MONTHS.map(formatMonth)
-            )
+            expect(
+                DATA_MONTHS.map((month) => fresh.formatMonth(month))
+            ).toEqual(DATA_MONTHS.map((month) => formatMonth(month)))
             expect(fresh.formatMonth('2024-02')).toBe('Feb 2024')
         }
     )

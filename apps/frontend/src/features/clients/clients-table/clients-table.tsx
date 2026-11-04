@@ -1,8 +1,8 @@
 import type { Company } from '@nevis/api-contract/model'
-import { formatMonth } from '@nevis/utils'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 
+import { useI18n } from '../../../i18n/i18n-context'
 import { Avatar } from '../../../ui/avatar/avatar'
 import {
     Cell,
@@ -52,6 +52,7 @@ export type ClientsTableProps = {
 // stored values only. Open / closed state and data issues come from hooks;
 // this component renders.
 export const ClientsTable = ({ months, company }: ClientsTableProps) => {
+    const { messages, formatMonth, formatNumber } = useI18n()
     const tree = useMemo(() => toTableTree(company), [company])
     const { expanded, animateNewRows, toggle, onExpandedChange } =
         useExpandedRows(tree)
@@ -73,7 +74,7 @@ export const ClientsTable = ({ months, company }: ClientsTableProps) => {
                 return (
                     <Cell key={months[monthIndex] ?? monthIndex}>
                         {mismatch === undefined ? (
-                            value
+                            formatNumber(value)
                         ) : (
                             <MismatchValue mismatch={mismatch} />
                         )}
@@ -89,7 +90,7 @@ export const ClientsTable = ({ months, company }: ClientsTableProps) => {
     return (
         <TableScroller>
             <Table
-                label="Clients per month"
+                label={messages.table.label}
                 treeColumn={NAME_COLUMN}
                 expandedKeys={expanded}
                 onExpandedChange={onExpandedChange}
@@ -97,7 +98,9 @@ export const ClientsTable = ({ months, company }: ClientsTableProps) => {
             >
                 <TableHeader>
                     <Column id={NAME_COLUMN} isRowHeader>
-                        <span className="sr-only">Name</span>
+                        <span className="sr-only">
+                            {messages.table.nameColumn}
+                        </span>
                     </Column>
                     {months.map((month) => (
                         <Column key={month} id={month}>

@@ -21,5 +21,5 @@ Plan, task split and target structure: [PLAN.md](PLAN.md). Brief: `requirements.
 - Tests and stories live next to the code (`*.test.ts`, `*.stories.tsx`).
 - Show stored values; never "fix" the data in the UI or the API.
 - Single responsibility: a data Loader only fetches and shows loading / error, then hands the data on (`children(data)`); render components take plain data props; state and side effects go into named hooks; a part with its own look gets its own component.
+- All user-facing text lives in `apps/frontend/src/i18n/` (`Messages` type + `en` catalog), read with `useI18n()` in `features/` and `app/`; `ui/` gets text as props. Text with values is a function; numbers and months go through `formatNumber` / `formatMonth` of `useI18n()`. Logic returns codes (e.g. `LoadErrorReason`), not words. Not copy: channel names from the data, dev console warnings.
 - Load state: use TanStack Query types (`UseQueryResult`, `query.status`) directly; no own wrapper type like `Loadable`.
-- Try to do single responsibility components like data Loader loads just data and show error state and loading, then separate components to render data, etc

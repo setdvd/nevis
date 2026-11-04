@@ -1,6 +1,7 @@
 import type { Company } from '@nevis/api-contract/model'
-import { formatMonth } from '@nevis/utils'
 import { lazy, Suspense, useMemo } from 'react'
+
+import { useI18n } from '../../../i18n/i18n-context'
 
 import {
     barTotals,
@@ -19,9 +20,6 @@ const BarChart = lazy(async () => {
     return { default: component }
 })
 
-const TITLE = 'Clients per month'
-const DESCRIPTION = 'Use arrow keys to read each month. Data table follows.'
-
 export type ClientsChartProps = {
     months: readonly string[]
     company: Company
@@ -29,26 +27,35 @@ export type ClientsChartProps = {
 
 // one stacked bar per month: existing + new-client channels, total = Company value
 export const ClientsChart = ({ months, company }: ClientsChartProps) => {
-    // once per data: the chart gets stable props and sets its option only then
+    const { messages, formatMonth, formatNumber } = useI18n()
+    // once per data (and language): the chart gets stable props and sets its
+    // option only then
     const chart = useMemo(() => {
         const series = toChartSeries(company)
         const colors = seriesColors(series)
-        const categories = months.map(formatMonth)
+        const categories = months.map((month) => formatMonth(month))
         return {
             categories,
             series: series.map((item, index) => ({
-                ...item,
+                name:
+                    item.kind === 'existing'
+                        ? messages.chart.existingClients
+                        : item.name,
+                values: item.values,
                 color: colors[index] ?? '#000000',
             })),
             yAxis: yAxisFor(Math.max(0, ...barTotals(series))),
             labels: {
-                chart: `${TITLE}, ${categories.at(0) ?? ''} to ${categories.at(-1) ?? ''}`,
-                total: 'Total',
-                table: TITLE,
-                category: 'Month',
+                chart: messages.chart.label(
+                    categories.at(0) ?? '',
+                    categories.at(-1) ?? ''
+                ),
+                total: messages.chart.total,
+                table: messages.chart.title,
+                category: messages.chart.month,
             },
         }
-    }, [months, company])
+    }, [months, company, messages, formatMonth])
 
     return (
         <div className="p-6">
@@ -57,7 +64,8 @@ export const ClientsChart = ({ months, company }: ClientsChartProps) => {
                     categories={chart.categories}
                     series={chart.series}
                     yAxis={chart.yAxis}
-                    description={DESCRIPTION}
+                    description={messages.chart.description}
+                    formatValue={formatNumber}
                     labels={chart.labels}
                 />
             </Suspense>
