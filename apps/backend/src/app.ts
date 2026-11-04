@@ -1,3 +1,6 @@
+import { fileURLToPath } from 'node:url'
+
+import { serveStatic } from '@hono/node-server/serve-static'
 import type { ApiError, ClientsResponse } from '@nevis/api-contract/model'
 import { Hono } from 'hono'
 import { compress } from 'hono/compress'
@@ -7,6 +10,9 @@ import { log } from './log'
 
 const notFound: ApiError = { error: 'not_found' }
 const internal: ApiError = { error: 'internal' }
+
+// absolute: works whatever folder the server is started from
+const STATIC_ROOT = fileURLToPath(new URL('../static', import.meta.url))
 
 // Serves the data as is: no runtime validation (the fixture is type-checked)
 // and no data checks. The checks (stored totals vs sum of children, missing
@@ -33,6 +39,24 @@ export const createApp = (response: ClientsResponse): Hono => {
         c.header('Cache-Control', 'no-cache')
         return c.json(response)
     })
+
+    // Mock CDN: static/avatars/<advisorId>.jpg, the FE builds the URL from the id.
+    // In production these files belong on a CDN (edge cache, resizing per device,
+    // no load on the API server), not on this server. Missing file -> 404 JSON.
+    // Images are not gzipped: compress() skips already compressed types.
+    // Cache-Control set on the finished response: serveStatic's onFound runs
+    // after the response is built, so a header set there is lost.
+    app.use(
+        '/avatars/*',
+        async (c, next) => {
+            await next()
+            if (c.res.status === 200 || c.res.status === 304) {
+                c.res.headers.set('Cache-Control', 'public, max-age=86400')
+            }
+        },
+        etag(),
+        serveStatic({ root: STATIC_ROOT })
+    )
 
     app.notFound((c) => c.json(notFound, 404))
     // message goes to the log only, never to the client

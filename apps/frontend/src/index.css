@@ -6,11 +6,21 @@
 /* design tokens: provisional, verify against Figma */
 @theme {
     --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
     --color-page: #f7f5ed;
+    --color-surface: #ffffff;
     --color-ink: #141413;
+    /* secondary text, e.g. month headers; contrast checked in design-tokens.test.ts */
+    --color-muted: #6b6a65;
+    --color-line: #ecebe6;
+    --color-line-strong: #d6d4cc;
+    --color-skeleton: #ecebe6;
+    --color-focus: #2f5bd3;
+
     --color-series-existing: #b29df8;
     --color-series-organic: #f4beb4;
     --color-series-paid: #a75e6e;
+
     --radius-card: 8px;
     --container-content: 1408px;
     --text-display: 35px;

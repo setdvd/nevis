@@ -60,6 +60,7 @@ apps/backend  (Hono, :8787)                 apps/frontend  (Vite, :5173 dev / :4
   serves data as is (no checks)             useGetClients() → UseQueryResult → cards
                                             findDataIssues() → dev warnings + cell markers
   GET /clients → { months, company }  ◄──── same-origin fetch
+  static/avatars/<id>.jpg (mock CDN)  ◄──── <img src={advisorAvatarUrl(id)}>
 ```
 
 Layering rules (enforced with ESLint where possible):
@@ -163,9 +164,10 @@ nevis/
 │
 └── apps/
     ├── backend/                     Node REST API
+    │   ├── static/avatars/          <advisorId>.jpg per advisor (64x64, 2.4 kB): mock CDN, a CDN in production
     │   └── src/
     │       ├── index.ts       (P0)  boot, serve :8787
-    │       ├── app.ts               createApp(response): GET /clients, 404, 500
+    │       ├── app.ts               createApp(response): GET /clients, static /avatars/*, 404, 500
     │       ├── log.ts               JSON Lines logger (requests, errors)
     │       └── *.test.ts            app.request() route tests
     │
@@ -196,7 +198,7 @@ nevis/
             │       ├── clients-table-skeleton.tsx
             │       └── table-tree.ts (+test)        company -> uniform tree, collapseKeys
             └── ui/                  one folder per component, each with *.stories.tsx
-                ├── avatar/          initials + tint from seed (+ helpers test)
+                ├── avatar/          photo (src) with initials + tint fallback (+ helpers test)
                 ├── bar-chart/       ECharts stacked bars, legend, sr data table, keyboard stepping
                 ├── button/
                 ├── card/            white surface, region named by an sr-only h2
@@ -216,6 +218,7 @@ Conventions: kebab-case file names, one folder per component, named exports only
 
 - `months`: exactly 12 strings `YYYY-MM`. The payload has no dates, so the API adds `2024-02` .. `2025-01` (the period stated in the brief). The UI formats them; it never hardcodes month names.
 - `company`: Company (`branches` required) > Branch (`employees` optional) > Advisor (`channels` optional) > AcquisitionChannel.
+- Advisor photos are **not** part of the API contract: they are static files, `/avatars/<advisorId>.jpg`, and the FE builds the URL from the id (`advisorAvatarUrl`). A mock CDN: the BE serves them in dev, a CDN should in production.
 - Every node: `id` (UUID), `name` (string), `values` (12 integers >= 0).
 - `additionalProperties: false` everywhere, so the generated types are closed (a child list in the wrong place is a compile error in the fixture).
 - A missing child list means "leaf". An empty list is treated the same way in the UI.
@@ -246,7 +249,7 @@ Decision: show stored values unchanged. The checks run on the FE (decision 11): 
 4. **Start state**: Company row open, all other rows closed.
 5. **Rows without children** have no chevron and no expanded state, and do nothing on click or Enter. (Check the Figma: if it shows chevrons on every row, this is a deliberate deviation.)
 6. **Closing a row closes its open descendants**, so reopening shows children closed.
-7. **Advisors show an initials avatar**; the data has no photos.
+7. **Advisor photos: static files by id, a mock CDN.** The data has no photo field, so `apps/backend/static/avatars/<advisorId>.jpg` holds one file per advisor (the same placeholder photo for now) and the BE serves the folder as is. The FE builds the URL from the id with `advisorAvatarUrl(id)` (`features/clients/advisor-avatar-url.ts`). In production the files belong on a CDN (edge cache, resizing per device, no image traffic on the API server); then only the base URL in that file changes. Only advisors have a file; when an image fails, the avatar shows initials on a tint.
 8. **Request policy**: one automatic retry after 500 ms, 10 s timeout per attempt, no refetch on window focus or reconnect.
 9. **When the design and the data disagree, the data wins.**
 10. **No runtime schema validation anywhere (types only).** API and web client trust the OpenAPI contract and use the orval-generated TS types; no zod. The data is a static, typed fixture, so the compiler already guarantees its shape; runtime checks would only repeat that and add bundle size. Value rules the types cannot express (12 values, integers >= 0, UUIDs) are documented in `openapi.yaml`, not enforced.
@@ -281,13 +284,15 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 - [x] T2.1 `createApp(response)`: `GET /clients` 200 with `Cache-Control: no-cache` + ETag (unchanged payload -> 304) and gzip; unknown route or method 404 `{"error":"not_found"}`; unhandled 500 `{"error":"internal"}` + log, no message or stack trace in the response.
 - [x] T2.2 `index.ts`: listen on 8787; port taken -> `server.error` log line and exit 1. No boot validation (the fixture is type-checked) and no data checks (they run on the FE, decision 11; `TODO(BE team)` comments in `app.ts` and the fixture).
 - [x] T2.3 `log.ts`: one JSON object per line (`time`, `level`, `event`, fields; fields cannot overwrite the fixed keys). Events: `server.listening`, `server.error`, `http.request` (method, path, status, durationMs), `http.unhandled_error`.
+- [x] T2.4 Advisor photos as a mock CDN: `serveStatic` serves `static/avatars/<advisorId>.jpg` (one file per advisor; missing file -> 404 JSON; `..` paths rejected), `Cache-Control: public, max-age=86400` + ETag, not gzipped (already compressed). The given 256x256 PNG (68 kB) is stored as a 64x64 JPEG (2.4 kB, enough for a 20px avatar at 3x). Comments say to use a CDN in production. Vite proxies `/avatars` like `/clients`. FE `advisorAvatarUrl(id)` builds `/avatars/<id>.jpg`. Tests: BE 12 (each advisor's file 200 with the same bytes, no gzip, 304 on ETag, 404 for company id / unknown id / folder / `..` paths), FE 2.
 - [x] Tests (8) via `app.request()`: data unchanged (May 301), 304 on ETag, gzip, request log line, 404 route and method, 500 with the message only in the log. Playwright now waits for `http://localhost:8787/clients`.
 
-### Phase 3: UI foundation (0.5 h)
+### Phase 3: UI foundation (0.5 h), done
 
-- [ ] T3.1 Design tokens in `index.css` (`@theme`): page `#F7F5ED`, ink `#141413`, series `#B29DF8` / `#F4BEB4` / `#A75E6E`, card radius 8px, content max width 1408px, heading 35px; Inter Variable; tabular numbers. Verify each value against the Figma.
-- [ ] T3.2 `ui/` components with stories: `Card` (region + sr-only `h2`), `Button` (RAC), `Skeleton` (aria-hidden, pulse only without reduced motion), `LoadError` (message + Retry, `role="alert"` opt-in), `Avatar` (initials, tint chosen from the id, aria-hidden, contrast >= 4.5:1).
-- [ ] Tests: avatar initials and tint helpers. Then drop `--passWithNoTests` from the `frontend` test script.
+- [x] T3.1 Design tokens in `index.css` (`@theme`): page `#F7F5ED`, surface `#FFFFFF`, ink `#141413`, muted `#6B6A65`, line `#ECEBE6` / `#D6D4CC`, skeleton, focus `#2F5BD3`, series `#B29DF8` / `#F4BEB4` / `#A75E6E`, card radius 8px, content max width 1408px, heading 35px; Inter Variable; tabular numbers. Contrast of ink / muted text (>= 4.5:1) and focus (>= 3:1) on surface and page is tested against the real `index.css` values (`design-tokens.test.ts`). Latin `woff2` preloaded from `index.html` (one font request, no unused-preload warning). **Still open: verify the values against the Figma.**
+- [x] T3.2 `ui/` components with stories (13 stories): `Card` (region named by an sr-only `h2`, `contain: layout paint`), `Button` (RAC; `focus:outline-hidden` + `focus-visible` outline, because Tailwind 4 `outline-none` would hide the ring), `Skeleton` (aria-hidden, `size` + `shape` props, opacity pulse only without reduced motion), `LoadError` (icon, message, Retry; `announce` puts `role="alert"` on the message only), `Avatar` (initials by grapheme, FNV-1a tint from the id, aria-hidden, border in forced colours). Storybook telemetry off. `Avatar` also takes an optional photo `src` (`<img alt="">`, lazy, fixed size; initials + tint while loading and on error); Storybook serves `apps/backend/static/avatars` at `/avatars` (`staticDirs`), so the `Photo`, `BrokenPhoto` and `Advisors` stories use the same URLs as the app.
+- [x] Tests (20): avatar initials (incl. decomposed accents), tint stable / from palette / varied across the advisor ids, ink on every tint >= 4.5:1; design-token contrast. `frontend` test script no longer passes without tests.
+- [x] Checked in Chromium (Playwright, static Storybook build): axe finds no violations in any story; focus ring on keyboard focus only (normal) and on focus (forced colours); skeleton not animated with reduced motion; one alert only when `announce` is set; card found as region by its title.
 
 ### Phase 4: Dashboard shell and load states (0.75 h)
 
@@ -303,7 +308,7 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 - [ ] T5.1 `toTableTree(company)`: one uniform `ClientsTableNode` tree; missing or empty child list -> leaf.
 - [ ] T5.2 `collapseKeys(expanded, id, tree)`: closing a row also closes its descendants.
 - [ ] T5.3 `ui/table`: thin wrappers over RAC tree `Table` (`treeColumn`, `expandedKeys`, `onExpandedChange`); `TreeCellContent` (aria-hidden chevron, 28px indent per level, empty slot on leaves so names line up); `TableScroller` (sideways scroll inside the card).
-- [ ] T5.4 `ClientsTable`: month headers via `formatMonth`; toggle on click / Enter / Right / Left; Space does nothing; leaf rows: no chevron, no `aria-expanded`, no hover fill, no pointer cursor; avatar on advisor rows; names are row headers, months are column headers.
+- [ ] T5.4 `ClientsTable`: month headers via `formatMonth`; advisor rows pass `src={advisorAvatarUrl(id)}` to `Avatar` (photo support done in Phase 3); toggle on click / Enter / Right / Left; Space does nothing; leaf rows: no chevron, no `aria-expanded`, no hover fill, no pointer cursor; avatar on advisor rows; names are row headers, months are column headers.
 - [ ] T5.5 `ClientsTableSkeleton` with the same layout and height (header + 4 rows).
 - [ ] T5.6 375px: name column 160px, sticky left with solid background, edge shadow while scrolled, ellipsis + full name while the row has focus.
 - [ ] T5.7 FE data checks (decision 11): `features/clients/data-issues.ts` `findDataIssues(company)` -> sum mismatches (expects the 7 in section 5) and nodes without channels (James, Maria, Robert, Sarah, Branch 2, Branch 3). Header comment: FE for now to ship faster; talk to the BE team to fix the data on the BE. In dev, one `console.warn` per issue after load. In the table, a mismatched cell keeps its stored value and gets a small marker + tooltip "Stored 301, children sum to 279" (sr-only text too).
@@ -381,6 +386,7 @@ JavaScript and React:
 - Chart keyboard stepping and tooltip use `dispatchAction` (no React state per hover/keypress, no re-render of the chart).
 - Expand/collapse renders only the visible rows (RAC tree `Table` with `expandedKeys`); collapsed subtrees are not in the DOM.
 - One request (`staleTime: Infinity`, no focus refetch); the fixture response gets `Cache-Control` and gzip in the API.
+- Advisor photos: 64x64 JPEG (2.4 kB each), cached a day, loaded lazily only for visible advisor rows (Branch 1 open). In production: from a CDN.
 - Lucide icons imported one by one (named imports, tree-shaken).
 - No date library: month labels use the native `Intl.DateTimeFormat` (one cached instance). Add `date-fns` only if date handling grows beyond formatting.
 
