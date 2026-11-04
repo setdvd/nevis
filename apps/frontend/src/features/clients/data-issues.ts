@@ -1,11 +1,14 @@
 import { formatMonth } from '@nevis/utils'
 
+import { reportDataIssue } from '../../reporting/report-data-issue'
+
 import type { ClientsTableNode } from './clients-table/table-tree'
 
 // Data checks run on the FE for now, only to ship faster (PLAN.md decision 11).
 // They belong with the data owner: TODO(BE team) - fix the discrepancies at the
 // source and move these checks to the BE. The UI never corrects the data: it
-// shows stored values and marks the cells that do not add up.
+// shows stored values and marks the cells that do not add up. Every issue
+// found is reported (reportDataIssues, see reporting/report-data-issue.ts).
 
 export type SumMismatch = {
     nodeId: string
@@ -82,31 +85,37 @@ export const findDataIssues = (tree: ClientsTableNode): DataIssues => {
 export const mismatchKey = (nodeId: string, monthIndex: number): string =>
     `${nodeId}:${String(monthIndex)}`
 
-// already warned in this page load: StrictMode runs effects twice in dev
-const warned = new Set<string>()
-
-// one console warning per issue, once per page load (dev only, see the caller)
-export const warnDataIssues = (
+// one report per issue (deduplicated per page load by reportDataIssue)
+export const reportDataIssues = (
     issues: DataIssues,
     months: readonly string[]
 ): void => {
     for (const issue of issues.sumMismatches) {
-        const key = `sum:${mismatchKey(issue.nodeId, issue.monthIndex)}`
-        if (!warned.has(key)) {
-            warned.add(key)
-            const month = months[issue.monthIndex]
-            console.warn(
-                `[data] ${issue.name}, ${month === undefined ? `month ${String(issue.monthIndex + 1)}` : formatMonth(month)}: stored ${String(issue.stored)}, children sum to ${String(issue.childrenSum)}`
-            )
-        }
+        const month = months[issue.monthIndex]
+        reportDataIssue({
+            key: `sum:${mismatchKey(issue.nodeId, issue.monthIndex)}`,
+            message: `${issue.name}, ${month === undefined ? `month ${String(issue.monthIndex + 1)}` : formatMonth(month)}: stored ${String(issue.stored)}, children sum to ${String(issue.childrenSum)}`,
+            details: {
+                kind: 'sum-mismatch',
+                nodeId: issue.nodeId,
+                name: issue.name,
+                month: month ?? 'missing',
+                monthIndex: issue.monthIndex,
+                stored: issue.stored,
+                childrenSum: issue.childrenSum,
+            },
+        })
     }
     for (const issue of issues.missingBreakdowns) {
-        const key = `missing:${issue.nodeId}`
-        if (!warned.has(key)) {
-            warned.add(key)
-            console.warn(
-                `[data] ${issue.name} (${issue.kind}) has numbers but no ${issue.kind === 'advisor' ? 'channel' : 'advisor'} breakdown`
-            )
-        }
+        reportDataIssue({
+            key: `missing:${issue.nodeId}`,
+            message: `${issue.name} (${issue.kind}) has numbers but no ${issue.kind === 'advisor' ? 'channel' : 'advisor'} breakdown`,
+            details: {
+                kind: 'missing-breakdown',
+                nodeId: issue.nodeId,
+                name: issue.name,
+                level: issue.kind,
+            },
+        })
     }
 }

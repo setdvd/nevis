@@ -1,12 +1,12 @@
 import { useEffect, useMemo } from 'react'
 
-import { findDataIssues, mismatchKey, warnDataIssues } from '../data-issues'
+import { findDataIssues, mismatchKey, reportDataIssues } from '../data-issues'
 import type { SumMismatch } from '../data-issues'
 
 import type { ClientsTableNode } from './table-tree'
 
 // The data issues of the tree (see data-issues.ts): a lookup for the cells
-// that do not add up, and one console warning per issue in dev builds.
+// that do not add up, and one report per issue (dev console now, Sentry later).
 export const useDataIssues = (
     tree: ClientsTableNode,
     months: readonly string[]
@@ -24,9 +24,7 @@ export const useDataIssues = (
     )
 
     useEffect(() => {
-        if (import.meta.env.DEV) {
-            warnDataIssues(issues, months)
-        }
+        reportDataIssues(issues, months)
     }, [issues, months])
 
     return (nodeId, monthIndex) =>

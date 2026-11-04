@@ -21,7 +21,7 @@ You need [nvm](https://github.com/nvm-sh/nvm).
 
 | Command            | What it does                                                                                                                                           |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm check`       | lint (0 warnings), format check, typecheck, unit tests in every package (145 tests)                                                                    |
+| `pnpm check`       | lint (0 warnings), format check, typecheck, unit tests in every package (147 tests)                                                                    |
 | `pnpm e2e:install` | installs Chromium for the browser tests, once per machine                                                                                              |
 | `pnpm check:e2e`   | builds the web app, starts the API (8787) and the preview (4173), runs 49 Playwright tests. The ports must be free, so stop `pnpm dev` first           |
 | `pnpm storybook`   | every UI component and both cards in every load state, with the accessibility addon, on http://localhost:6006                                          |
@@ -45,7 +45,7 @@ The frontend has three layers, enforced by ESLint: `ui/` is domain-free (Card, B
 
 ## Text and languages
 
-All user-facing text is in one typed catalog, `apps/frontend/src/i18n/en.ts` (shape: `messages.ts`); components read it with `useI18n()`, `ui/` components get their text as props. Text with values is a function (`load.error(reason)`, `chart.label(from, to)`), so a translation can order the words its own way; numbers and months are formatted for the locale with `Intl`. Adding a language = a second catalog of type `Messages` and its locale in `app/providers.tsx`; the provider also sets the page's `lang` and title. The `GermanFormatting` stories show `de-DE` formatting (months and numbers). Not translated: channel names (they come from the data), the dev console warnings, and the `: ` / `, ` separators of the chart's month text.
+All user-facing text is in one typed catalog, `apps/frontend/src/i18n/en.ts` (shape: `messages.ts`); components read it with `useI18n()`, `ui/` components get their text as props. Text with values is a function (`load.error(reason)`, `chart.label(from, to)`), so a translation can order the words its own way; numbers and months are formatted for the locale with `Intl`. Adding a language = a second catalog of type `Messages` and its locale in `app/providers.tsx`; the provider also sets the page's `lang` and title. The `GermanFormatting` stories show `de-DE` formatting (months and numbers). Not translated: channel names (they come from the data), the data issue reports (dev console / Sentry), and the `: ` / `, ` separators of the chart's month text.
 
 Why no i18n library: one language, ~25 strings and no plurals, so a typed catalog plus `Intl` does the job with compile-time checks and 0 kB. With real translations, plurals or a translation tool, switch to react-intl or Lingui; every text is already behind `useI18n()`, so the components would not change (details at the top of `i18n/messages.ts`). Still to do: pass the locale to react-aria-components' own `I18nProvider` too, for its built-in screen-reader text and right-to-left layout.
 
@@ -57,13 +57,14 @@ Why no i18n library: one language, ~25 strings and no plurals, so a typed catalo
 - **Start state**: Company open, everything else closed. **Closing a row closes its open children**, so reopening shows them closed.
 - **No runtime validation**: both sides use the TypeScript types generated from `openapi.yaml`, and the fixture is checked with `satisfies`. The value rules the types cannot express (12 values, integers >= 0, UUIDs) are documented in the contract, not enforced.
 - **Data checks run in the frontend for now**, only to ship faster; they belong with the data owner (see below).
+- **Every data integrity issue is reported**, once per issue and page load, through `reportDataIssue` (`apps/frontend/src/reporting/`): in the dev console today, to Sentry once it is set up (the call is written there as a TODO). The UI still shows the stored values.
 - **Advisor photos are static files by id** (`/avatars/<advisorId>.jpg`, the same placeholder photo for all five): the data has no photo field. The API serves them as a mock CDN; in production they belong on a CDN. When a photo fails, the avatar shows initials.
 - **Requests**: one automatic retry after 500 ms, 10 s limit per attempt, no refetch on focus or reconnect, offline fails at once.
 - When the design and the data disagree, the data wins.
 
 ## What the data gets wrong
 
-7 stored totals differ from the sum of their children. They are shown as stored, marked with a dot (hover or keyboard focus shows "Stored 301, children sum to 279", screen readers hear it too), and logged once each in the dev console:
+7 stored totals differ from the sum of their children. They are shown as stored, marked with a dot (hover or keyboard focus shows "Stored 301, children sum to 279", screen readers hear it too), and reported once each (dev console today, Sentry later; see Assumptions):
 
 | Node           | Month    | Stored | Sum of children |
 | -------------- | -------- | -----: | --------------: |
@@ -77,7 +78,7 @@ Why no i18n library: one language, ~25 strings and no plurals, so a typed catalo
 
 Maria Gutierrez has 22 in May and 35-52 in every other month, which looks like a typo for 44: with 44, Branch 1 would be 178 and the branches would add up to the stored Company total (178 + 87 + 36 = 301). These should be fixed at the source, and the checks then move to the backend.
 
-Also: "Existing clients" is a status, while "New organic" and "New paid" are acquisition channels, yet they are stored side by side as if they were the same kind of thing. And only one advisor out of five has a breakdown at all.
+Also: "Existing clients" is a status, while "New organic" and "New paid" are acquisition channels, yet they are stored side by side as if they were the same kind of thing. And only one advisor out of five has a breakdown at all: the 4 advisors without channels and the 2 branches without advisors are reported as well.
 
 ## Design decisions and deviations
 
@@ -102,6 +103,7 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 - **Screen readers not checked by hand.** Roles, names, levels and states are tested in the browser and with axe, but nobody has listened to it with VoiceOver, NVDA or JAWS yet (checklist in PLAN.md, T7.5).
 - Under 4x CPU throttling, opening a row still renders in one or two long tasks of ~60-120 ms; it is a React transition, so the click paints at once, but the "no long task > 50 ms" budget is not met.
 - A non-JSON error body (e.g. a proxy's 502 HTML page) shows "The data was not valid." instead of the server error: the generated client fails to parse it before it sets the status.
+- **Data issues are not reported from production yet**: the Sentry call in `apps/frontend/src/reporting/report-data-issue.ts` is a TODO, so only the dev console shows them.
 - The sticky column's edge shadow uses CSS scroll timelines; browsers without them show no shadow.
 - The ECharts chunk is 178 kB gzip, even tree-shaken. It loads in parallel with the data and never blocks the table.
 
@@ -112,6 +114,7 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 
 ## What next
 
+- Set up Sentry and make the TODO in `reportDataIssue` the real call, so every data issue found in production reaches the data owner.
 - Fix the data at the source and move the checks to the backend; store counts only at the lowest level, with an explicit channel per count.
 - Check the UI against the Figma file and with VoiceOver / NVDA, and add Firefox and WebKit to the browser tests.
 - Get the chart chunk smaller (or try a lighter chart library) and split the row render further if real devices show slow interactions.

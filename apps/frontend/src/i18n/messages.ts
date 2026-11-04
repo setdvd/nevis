@@ -2,7 +2,7 @@
 // function, so a translation can put the values where its grammar needs them.
 // Values arrive already formatted for the locale (numbers, months).
 // Not here, on purpose: channel names (they come from the data) and the
-// developer console warnings about the data (for developers, in English).
+// data issue reports (reportDataIssue: for developers and Sentry, in English).
 //
 // Why no i18n library (react-intl / FormatJS, Lingui, i18next):
 // - the stack has none, and the app has ~25 strings, one language, no plurals;

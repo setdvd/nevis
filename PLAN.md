@@ -184,13 +184,15 @@ nevis/
             │   ├── en.ts                  the English catalog
             │   ├── i18n-context.ts        createI18n, useI18n (locale, messages, formatNumber, formatMonth)
             │   └── i18n-provider.tsx      I18nProvider (also sets <html lang> and the title)
+            ├── reporting/
+            │   └── report-data-issue.ts (+test)   reportDataIssue: every data integrity issue, once per page load (dev console now, Sentry TODO)
             ├── app/
             │   ├── providers.tsx          QueryClient defaults
             │   ├── dashboard-page.tsx     layout: heading + ClientsLoader + ClientsDashboard
             │   └── app-error-boundary.tsx
             ├── features/clients/
             │   ├── describe-load-error.ts (+test)   timeout / network / server (status) / invalid data
-            │   ├── data-issues.ts (+test)          findDataIssues: sum mismatches, missing channels (FE for now, see decision 11)
+            │   ├── data-issues.ts (+test)          findDataIssues: sum mismatches, missing channels (FE for now, see decision 11); reportDataIssues
             │   ├── clients-loader/
             │   │   ├── clients-loader.tsx       fetches; loading / error / children(data); busy, status line, Retry
             │   │   ├── clients-loading.tsx (+stories)
@@ -206,7 +208,7 @@ nevis/
             │   └── clients-table/
             │       ├── clients-table.tsx        renders the rows
             │       ├── use-expanded-rows.ts     open / closed state (transition)
-            │       ├── use-data-issues.ts       mismatch lookup + dev warnings
+            │       ├── use-data-issues.ts       mismatch lookup + reports the issues
             │       ├── mismatch-value.tsx       marked stored value
             │       ├── clients-table-skeleton.tsx
             │       └── table-tree.ts (+test)        company -> uniform tree, collapseKeys, nextExpanded
@@ -227,6 +229,7 @@ Conventions: kebab-case file names, one folder per component, named exports only
 - **Load state uses TanStack Query types only** (`UseQueryResult`, `query.status`, `query.data`, `query.error`). No own wrapper type such as `Loadable`.
 - **Single responsibility** (review note, applied to all components): a data Loader (`ClientsLoader`) only fetches and shows loading / error; render components (cards, table, chart) take plain data props; state and side effects live in named hooks (`useExpandedRows`, `useDataIssues`, `useCategoryKeyboard`, `useNoArrowScroll`, `useDelayedFlag`); a part with its own look gets its own component (`MismatchValue`, `BarChartPlot`). Stories therefore need no network or query client.
 - **All copy in `src/i18n/`** (review note "move all copy and prepare for i18n"): `Messages` type + `en` catalog + `I18nProvider` / `useI18n()` (locale, messages, `formatNumber`, `formatMonth` via `Intl`); `ui/` gets text as props and may not import `i18n/` (ESLint zone); logic returns codes (`loadErrorReason` -> `LoadErrorReason`, chart series `kind: 'existing' | 'channel'`), the catalog turns them into words; `formatMonth` in `utils` takes a locale.
+- **Every data integrity issue is reported** (decision 12): a check sends each issue it finds to `reportDataIssue` (`src/reporting/`, a base layer like `i18n/`; `ui/` may not import it, ESLint zone). It dedupes per page load, warns in the dev console and holds the Sentry call as a TODO. The UI still shows the stored values.
 - **No `notReachable` / `assertNever` helpers.** A `switch` over a union lists every case and has no `default`; `@typescript-eslint/switch-exhaustiveness-check` reports a missing case.
 
 ## 5. Data contract
@@ -256,7 +259,7 @@ Stored totals that differ from the sum of their children:
 | Anna Blackwood | Aug 2024 |     38 |              36 |
 | Anna Blackwood | Sep 2024 |     27 |              28 |
 
-Decision: show stored values unchanged. The checks run on the FE (decision 11): `findDataIssues` finds them, logs a `console.warn` per issue in dev, and the table marks each affected cell; the README lists them. **Talk to the BE team** so the discrepancies get fixed at the source; doing it on the FE is only to ship faster.
+Decision: show stored values unchanged. The checks run on the FE (decision 11): `findDataIssues` finds them, `reportDataIssues` reports each one once per page load (decision 12: dev console now, Sentry once set up), and the table marks each affected cell; the README lists them. **Talk to the BE team** so the discrepancies get fixed at the source; doing it on the FE is only to ship faster.
 
 ## 6. Decisions and assumptions (to be confirmed, then moved to README)
 
@@ -271,6 +274,7 @@ Decision: show stored values unchanged. The checks run on the FE (decision 11): 
 9. **When the design and the data disagree, the data wins.**
 10. **No runtime schema validation anywhere (types only).** API and web client trust the OpenAPI contract and use the orval-generated TS types; no zod. The data is a static, typed fixture, so the compiler already guarantees its shape; runtime checks would only repeat that and add bundle size. Value rules the types cannot express (12 values, integers >= 0, UUIDs) are documented in `openapi.yaml`, not enforced.
 11. **Data checks live on the FE for now.** This is an FE-oriented task, so the BE stays a thin "serve the data as is" layer and is barely touched. The FE detects sum mismatches and missing channels (`findDataIssues`), shows stored values unchanged, and marks the mismatches. The right long-term owner is the BE / data owner: **we should talk to the BE team to fix the discrepancies on the BE**; we do it on the FE only to ship faster. Code comments at both places say so.
+12. **Every data integrity issue is reported.** Data that contradicts itself or the contract (today: the 7 sum mismatches and the 6 nodes without a breakdown) goes to `reportDataIssue` (`apps/frontend/src/reporting/report-data-issue.ts`), once per issue and page load, in every build. Today it writes a `console.warn` in dev and nothing in production; it should report to Sentry (warning level, one fingerprint per issue, structured details), written there as a TODO until Sentry is set up. Every new check reports through it too; showing a marker or falling back silently is not enough. Value rules the types cannot express stay unchecked (decision 10); a check added for them reports the same way.
 
 ## 7. Task split
 
@@ -358,6 +362,8 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 - [x] T8.1 README: quick start, run/test commands, assumptions (section 6), data issues (section 5), design deviations, table and chart keys, open questions, what next. Also: what the data gets wrong, known limits, test coverage per brief requirement, the build in short.
 - [x] T8.2 _stretch_: screenshots (desktop, 375px, open table, error) in `docs/screenshots/`. Done as `pnpm screenshots` (`playwright.screenshots.config.ts` + `e2e/screenshots.shot.ts`, same build and API as the browser tests, reduced motion): desktop, table open, chart from the keyboard, 375px, error. It caught one bug: with reduced motion the chart's axis pointer and tooltip still slid (ECharts animates them apart from `animation`); now `axisPointer.animation` and `transitionDuration` follow it too (unit-tested).
 - [x] T8.3 Final `pnpm check` + `pnpm check:e2e`. Both green (see the final run).
+- [x] T8.4 Data issue reporting (decision 12): `reporting/report-data-issue.ts` `reportDataIssue({ key, message, details })`, deduplicated by key per page load, `console.warn` in dev, the Sentry call as a TODO; `findDataIssues` results go through `reportDataIssues` (replaces `warnDataIssues`), in every build. Tests: once per key, no console output in production, the 13 reports with their details.
+- [ ] T8.5 Set up Sentry and turn the TODO in `reportDataIssue` into the real call, so data issues from production reach the data owner.
 
 ## 8. Priorities if time runs out
 
@@ -417,5 +423,6 @@ Checks: `pnpm build` prints chunk sizes (budget above); Lighthouse mobile run an
 - **Node 26 is required** (`.nvmrc`). Run `nvm install` and `npm i -g pnpm@12` once (Node 26 does not ship corepack).
 - **RAC tree table**: `treeColumn` / `expandedKeys` on `Table` is newer API. If it misbehaves, fall back to a hand-written `role="treegrid"` table with roving `tabIndex`.
 - **ECharts rounded stacked bars**: the per-stack rounded outline needs a custom series. Fallback: standard stacked `bar` with `borderRadius` on the top/bottom visible part.
+- **Data issue reports go nowhere in production yet**: the Sentry call in `reportDataIssue` is a TODO (decision 12, T8.5); until then only the dev console shows them.
 - **Data discrepancies belong to the BE**: the checks are on the FE only to ship faster (decision 11). Raise the 7 mismatches with the BE team / data owner and move the checks to the BE once they own them.
 - **Open question for the product owner**: should "no channel recorded" be an explicit channel? It decides what "Existing clients" means in the chart (decision 3).

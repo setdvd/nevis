@@ -126,6 +126,21 @@ export default defineConfig(
                             message:
                                 'i18n/ is a base layer: it imports no features or app',
                         },
+                        {
+                            target: './apps/frontend/src/ui',
+                            from: './apps/frontend/src/reporting',
+                            message:
+                                'ui/ is domain-free: data issues are reported in features/',
+                        },
+                        {
+                            target: './apps/frontend/src/reporting',
+                            from: [
+                                './apps/frontend/src/features',
+                                './apps/frontend/src/app',
+                            ],
+                            message:
+                                'reporting/ is a base layer: it imports no features or app',
+                        },
                     ],
                 },
             ],

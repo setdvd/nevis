@@ -3,7 +3,7 @@ import { clientsResponse } from '@nevis/api-contract/fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { toTableTree } from './clients-table/table-tree'
-import { findDataIssues, warnDataIssues } from './data-issues'
+import { findDataIssues, reportDataIssues } from './data-issues'
 
 const issues = findDataIssues(toTableTree(clientsResponse.company))
 
@@ -58,21 +58,31 @@ describe('findDataIssues on consistent data', () => {
     })
 })
 
-describe('warnDataIssues', () => {
-    it('warns once per issue, even when called again (StrictMode)', () => {
+describe('reportDataIssues', () => {
+    it('reports once per issue, even when called again (StrictMode)', () => {
         const warn = vi
             .spyOn(console, 'warn')
             .mockImplementation(() => undefined)
 
-        warnDataIssues(issues, clientsResponse.months)
-        warnDataIssues(issues, clientsResponse.months)
+        reportDataIssues(issues, clientsResponse.months)
+        reportDataIssues(issues, clientsResponse.months)
 
         expect(warn).toHaveBeenCalledTimes(13)
         expect(warn).toHaveBeenCalledWith(
-            '[data] Company, May 2024: stored 301, children sum to 279'
+            '[data] Company, May 2024: stored 301, children sum to 279',
+            expect.objectContaining({
+                kind: 'sum-mismatch',
+                month: '2024-05',
+                stored: 301,
+                childrenSum: 279,
+            })
         )
         expect(warn).toHaveBeenCalledWith(
-            '[data] Branch 2 (branch) has numbers but no advisor breakdown'
+            '[data] Branch 2 (branch) has numbers but no advisor breakdown',
+            expect.objectContaining({
+                kind: 'missing-breakdown',
+                level: 'branch',
+            })
         )
     })
 })
