@@ -265,16 +265,16 @@ Each phase ends with `pnpm check` green. Estimates add up to about 8 h; items ma
 
 Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 
-### Phase 1: Contract and utils (1 h), contract done; utils open
+### Phase 1: Contract and utils (1 h), done
 
 - [x] T1.1 `openapi.yaml` as in section 5, plus an `ApiError` schema (`not_found` / `internal`) for the error bodies.
 - [x] T1.2 orval config: TanStack Query + fetch typed by the generated TS models, MSW mocks (`mock.exactOptional: true`, so mocks leave optional fields out instead of setting `undefined`, needed for `exactOptionalPropertyTypes`); no zod, no runtime validation; `pnpm generate`. `pnpm check:generated` only works once `src/generated` is committed.
 - [x] T1.3 `fixtures/clients.ts` (payload verbatim + months, `satisfies ClientsResponse`; re-checked: 12 nodes x 12 values, the 7 mismatches of section 5) and `clients-example.ts` (consistent totals, a leaf branch, an extra "Referral" channel). Exports: `./model`, `./client`, `./mocks`, `./fixtures`, `./example`, `./http`.
 - [x] T1.4 `withRequestTimeout`: `AbortSignal.any([querySignal, AbortSignal.timeout(10_000)])` per attempt; non-JSON 2xx (body that fails `JSON.parse`, or a non-JSON content type) -> `InvalidDataError`. Known limit: a non-JSON _error_ body (e.g. 502 HTML) also fails `JSON.parse` before the generated code sets `status`, so it shows as invalid data, not as a server error.
-- [ ] T1.5 Utils: `formatMonth` on top of one cached `Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' })`. No date library: we only format a month label, and `Intl` is built in (0 kB). A comment in the file says so; if date needs grow (parsing, arithmetic, ranges, relative time), switch to `date-fns`.
-- [ ] T1.6 Drop `--passWithNoTests` from each package's `test` script once it has tests (scaffold placeholder). Done for `api-contract` and `backend`; open for `utils` and `frontend`.
+- [x] T1.5 Utils: `formatMonth` on top of one cached `Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' })`. No date library: we only format a month label, and `Intl` is built in (0 kB). A comment in the file says so; if date needs grow (parsing, arithmetic, ranges, relative time), switch to `date-fns`. The year is taken from the input as written, because `year: 'numeric'` prints year 99 as "99" and `Date.UTC` maps years 0-99 to 1900-1999.
+- [x] T1.6 Dropped `--passWithNoTests` in `utils`, `api-contract` and `backend`. `frontend` keeps it until its first test (moved to Phase 3).
 - [x] Tests (9): JSON 200; error with HTTP status (JSON and empty body); non-JSON 2xx and non-JSON content type -> `InvalidDataError`; JSON content type with suffix and charset accepted; timeout; retry gets a fresh limit; cancel aborts the request.
-- [ ] Tests: `formatMonth` in UTC and other time zones (with T1.5).
+- [x] Tests (14): the 12 data months; year kept as written (`0001-02` -> `Feb 0001`); `RangeError` on 9 bad inputs; same labels in `America/New_York`, `Pacific/Kiritimati`, `Asia/Kathmandu` (fresh module per `TZ`; checked that dropping `timeZone: 'UTC'` makes New York fail).
 
 ### Phase 2: API (0.25 h), done
 
@@ -287,7 +287,7 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 
 - [ ] T3.1 Design tokens in `index.css` (`@theme`): page `#F7F5ED`, ink `#141413`, series `#B29DF8` / `#F4BEB4` / `#A75E6E`, card radius 8px, content max width 1408px, heading 35px; Inter Variable; tabular numbers. Verify each value against the Figma.
 - [ ] T3.2 `ui/` components with stories: `Card` (region + sr-only `h2`), `Button` (RAC), `Skeleton` (aria-hidden, pulse only without reduced motion), `LoadError` (message + Retry, `role="alert"` opt-in), `Avatar` (initials, tint chosen from the id, aria-hidden, contrast >= 4.5:1).
-- [ ] Tests: avatar initials and tint helpers.
+- [ ] Tests: avatar initials and tint helpers. Then drop `--passWithNoTests` from the `frontend` test script.
 
 ### Phase 4: Dashboard shell and load states (0.75 h)
 
