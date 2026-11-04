@@ -2,6 +2,8 @@ import { Component } from 'react'
 import type { ErrorInfo, ReactNode } from 'react'
 
 import { Button } from '../ui/button/button'
+import { Heading } from '../ui/heading/heading'
+import { Page } from '../ui/page/page'
 
 type AppErrorBoundaryProps = {
     children: ReactNode
@@ -32,10 +34,8 @@ export class AppErrorBoundary extends Component<
             return this.props.children
         }
         return (
-            <main className="mx-auto box-content flex max-w-content flex-col items-start gap-4 px-4 py-6">
-                <h1 className="text-display font-normal">
-                    Something went wrong.
-                </h1>
+            <Page align="start">
+                <Heading level={1}>Something went wrong.</Heading>
                 <Button
                     onPress={() => {
                         window.location.reload()
@@ -43,7 +43,7 @@ export class AppErrorBoundary extends Component<
                 >
                     Reload
                 </Button>
-            </main>
+            </Page>
         )
     }
 }

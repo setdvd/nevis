@@ -1,7 +1,7 @@
-# we need to implement test task
+# need to correct
 
-- in the pdf file is requirements for test task in pdf and also it is copy in md file
-- create project structure
-- and before implementation create a md file with task split and details of project structure and plan of implement 
+- extract headers and such stuff to ui kit
+- make it friendly to a team using agants for development a lot
+- our internal notes should not be commited and push to github (only customer facing things)
 
 

@@ -1,0 +1,57 @@
+/* ui/table: only transform / opacity animate (PLAN.md section 10) */
+
+/*
+ * Edge shadow of the sticky name column, shown only while the table is scrolled
+ * sideways. Scroll-driven animation: no scroll listener, no layout work, runs on
+ * the compositor. Browsers without scroll timelines show no shadow.
+ */
+@keyframes table-edge-shadow {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.table-scroller {
+    scroll-timeline: --table-x inline;
+}
+
+.table-sticky::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: -8px;
+    width: 8px;
+    pointer-events: none;
+    background: linear-gradient(to right, rgb(20 20 19 / 0.08), transparent);
+    opacity: 0;
+}
+
+@supports (animation-timeline: scroll()) {
+    .table-sticky::after {
+        animation: table-edge-shadow linear both;
+        animation-timeline: --table-x;
+        animation-range: 0 24px;
+    }
+}
+
+/*
+ * Rows that appear because the user opened a row slide and fade in. Rows of
+ * the first render do not: the attribute is set only after the first toggle,
+ * and @starting-style only applies to newly inserted rows. Closing removes
+ * rows at once.
+ */
+@media (prefers-reduced-motion: no-preference) {
+    [data-animate-new-rows] .table-row {
+        transition:
+            opacity 300ms ease-out,
+            transform 300ms ease-out;
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+    }
+}

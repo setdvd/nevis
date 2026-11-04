@@ -4,6 +4,8 @@ import { useRef, useState } from 'react'
 
 import { ChartCard } from '../features/clients/chart-card/chart-card'
 import { TableCard } from '../features/clients/table-card/table-card'
+import { Heading } from '../ui/heading/heading'
+import { Page } from '../ui/page/page'
 
 import { useDelayedFlag } from './use-delayed-flag'
 
@@ -53,13 +55,10 @@ export const DashboardPage = () => {
           : ''
 
     return (
-        <main className="mx-auto box-content flex max-w-content flex-col gap-4 px-4 py-6">
-            <h1
-                ref={headingRef}
-                className="text-display font-normal outline-hidden"
-            >
+        <Page>
+            <Heading level={1} ref={headingRef}>
                 Clients
-            </h1>
+            </Heading>
             <div
                 aria-busy={query.status === 'pending'}
                 className="flex flex-col gap-4"
@@ -71,6 +70,6 @@ export const DashboardPage = () => {
             <p role="status" className="sr-only">
                 {statusText}
             </p>
-        </main>
+        </Page>
     )
 }
