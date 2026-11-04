@@ -9,6 +9,7 @@
     "test": "pnpm -r --if-present test",
     "check:e2e": "pnpm --filter @nevis/frontend e2e",
     "e2e:install": "pnpm --filter @nevis/frontend exec playwright install chromium --only-shell",
+    "screenshots": "pnpm --filter @nevis/frontend screenshots",
     "storybook": "pnpm --filter @nevis/frontend storybook",
     "generate": "pnpm --filter @nevis/api-contract generate",
     "check:generated": "pnpm --filter @nevis/api-contract check:generated",

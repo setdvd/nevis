@@ -9,6 +9,7 @@ Plan, task split and target structure: [PLAN.md](PLAN.md). Brief: `requirements.
 - `pnpm dev` - start frontend (5173) and backend (8787)
 - `pnpm check` - lint, format check, typecheck, unit tests; must pass before a phase is done
 - `pnpm check:e2e` - Playwright browser tests (ports 4173 and 8787 must be free)
+- `pnpm screenshots` - regenerate `docs/screenshots/` (same servers and ports as `check:e2e`)
 - `pnpm generate` - regenerate `packages/api-contract/src/generated/` from `openapi.yaml`
 
 ## Rules

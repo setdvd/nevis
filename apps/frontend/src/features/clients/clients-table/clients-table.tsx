@@ -1,7 +1,7 @@
 import type { Company } from '@nevis/api-contract/model'
 import { formatMonth } from '@nevis/utils'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { startTransition, useEffect, useMemo, useState } from 'react'
 import type { Key } from 'react-aria-components'
 
 import { Avatar } from '../../../ui/avatar/avatar'
@@ -99,18 +99,26 @@ export const ClientsTable = ({ months, company }: ClientsTableProps) => {
         }
     }, [issues, months])
 
+    // Opening or closing re-renders every visible row (RAC rebuilds the tree):
+    // as a transition, the press itself is handled at once and the browser can
+    // paint, while React renders the rows in chunks it can pause (INP).
+
     // click, tap, Enter
     const toggle = (id: string) => {
-        setAnimateNewRows(true)
-        setExpanded((previous) => toggleExpanded(previous, id, tree))
+        startTransition(() => {
+            setAnimateNewRows(true)
+            setExpanded((previous) => toggleExpanded(previous, id, tree))
+        })
     }
 
     // Right / Left keys
     const onExpandedChange = (keys: Set<Key>) => {
-        setAnimateNewRows(true)
-        setExpanded((previous) =>
-            nextExpanded(previous, new Set([...keys].map(String)), tree)
-        )
+        startTransition(() => {
+            setAnimateNewRows(true)
+            setExpanded((previous) =>
+                nextExpanded(previous, new Set([...keys].map(String)), tree)
+            )
+        })
     }
 
     const renderRow = (node: ClientsTableNode) => (

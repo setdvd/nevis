@@ -9,6 +9,7 @@
         "src",
         ".storybook/*.ts",
         "vite.config.ts",
-        "playwright.config.ts"
+        "playwright.config.ts",
+        "playwright.screenshots.config.ts"
     ]
 }
