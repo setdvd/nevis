@@ -1,13 +1,12 @@
-import type { EChartsType } from 'echarts/core'
-import { useId, useMemo, useRef } from 'react'
+import { useId, useState } from 'react'
 
 import { BarChartLegend } from './bar-chart-legend'
-import { describeCategory, toBarOption, tooltipHtml } from './bar-chart-model'
+import { describeCategory } from './bar-chart-model'
 import type { BarChartSeries } from './bar-chart-model'
 import { BarChartPlot } from './bar-chart-plot'
 import { BarChartTable } from './bar-chart-table'
+import { BarChartTooltip } from './bar-chart-tooltip'
 import { useCategoryKeyboard } from './use-category-keyboard'
-import { useReducedMotion } from './use-reduced-motion'
 
 export type BarChartProps = {
     categories: readonly string[]
@@ -40,39 +39,15 @@ export const BarChart = ({
     labels,
 }: BarChartProps) => {
     const descriptionId = useId()
-    const reducedMotion = useReducedMotion()
-    const chartRef = useRef<EChartsType | null>(null)
-
-    const option = useMemo(
-        () =>
-            toBarOption({
-                categories,
-                series,
-                yAxis,
-                animate: !reducedMotion,
-                tooltip: (index) =>
-                    tooltipHtml(
-                        categories[index] ?? '',
-                        series,
-                        index,
-                        labels.total,
-                        formatValue
-                    ),
-            }),
-        [categories, series, yAxis, reducedMotion, labels.total, formatValue]
-    )
+    // the category whose tooltip shows: the keyboard's or the pointer's,
+    // whichever moved last
+    const [tooltipAt, setTooltipAt] = useState<number | undefined>()
 
     const keyboard = useCategoryKeyboard({
         count: categories.length,
-        show: (index) => {
-            chartRef.current?.dispatchAction({
-                type: 'showTip',
-                seriesIndex: 0,
-                dataIndex: index,
-            })
-        },
+        show: setTooltipAt,
         hide: () => {
-            chartRef.current?.dispatchAction({ type: 'hideTip' })
+            setTooltipAt(undefined)
         },
     })
     const current = keyboard.active ?? 0
@@ -101,10 +76,22 @@ export const BarChart = ({
                 className="rounded outline-hidden focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid focus-visible:outline-focus"
             >
                 <BarChartPlot
-                    option={option}
-                    onReady={(instance) => {
-                        chartRef.current = instance
-                    }}
+                    categories={categories}
+                    series={series}
+                    yAxis={yAxis}
+                    active={tooltipAt}
+                    onPointerCategory={setTooltipAt}
+                    tooltip={
+                        tooltipAt !== undefined && (
+                            <BarChartTooltip
+                                category={categories[tooltipAt] ?? ''}
+                                series={series}
+                                index={tooltipAt}
+                                totalLabel={labels.total}
+                                formatValue={formatValue}
+                            />
+                        )
+                    }
                 />
             </div>
             <p id={descriptionId} className="sr-only">

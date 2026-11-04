@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 
 import type { Page } from '@playwright/test'
@@ -70,19 +70,23 @@ const row = (page: Page, name: string) =>
         .filter({ has: page.getByRole('rowheader', { name, exact: true }) })
 
 test.describe('performance', () => {
-    test('initial JS stays under 200 kB gzip; the chart is its own chunk', () => {
+    test('all JS loads up front and stays under 200 kB gzip', () => {
         const html = readFileSync('dist/index.html', 'utf8')
         const initial = [
             ...html.matchAll(
                 /<script[^>]+src="\/([^"]+\.js)"|<link[^>]+rel="modulepreload"[^>]+href="\/([^"]+\.js)"/g
             ),
         ].map((match) => match[1] ?? match[2] ?? '')
+        const built = readdirSync('dist/assets')
+            .filter((file) => file.endsWith('.js'))
+            .map((file) => `assets/${file}`)
         const gzipKb = (file: string) =>
             gzipSync(readFileSync(`dist/${file}`)).length / 1024
         const initialKb = initial.reduce((sum, file) => sum + gzipKb(file), 0)
 
         console.log(`initial JS ${initialKb.toFixed(1)} kB gzip`)
-        expect(initial.some((file) => file.includes('bar-chart'))).toBe(false)
+        // no lazy chunk: the chart is drawn with the table, nothing comes later
+        expect([...built].sort()).toEqual([...initial].sort())
         expect(initialKb).toBeLessThan(200)
     })
 
@@ -92,7 +96,10 @@ test.describe('performance', () => {
         await page.goto('/')
         await expect(page.getByRole('treegrid')).toBeVisible()
         await expect(
-            page.locator('.echarts-for-react svg text').first()
+            page
+                .getByRole('region', { name: 'Clients chart' })
+                .locator('svg text')
+                .first()
         ).toBeVisible()
         await page.waitForTimeout(500)
 
@@ -109,7 +116,10 @@ test.describe('performance', () => {
         await page.goto('/')
         await expect(page.getByRole('treegrid')).toBeVisible()
         await expect(
-            page.locator('.echarts-for-react svg text').first()
+            page
+                .getByRole('region', { name: 'Clients chart' })
+                .locator('svg text')
+                .first()
         ).toBeVisible()
         await throttleCpu(page)
 

@@ -48,6 +48,15 @@ const openAt = async (page: Page, width: number) => {
     await expect(table(page)).toBeVisible()
 }
 
+// The chart comes right before the table in the tab order. Tab from it enters
+// the table (one Tab stop) at its first row. Starting from the chart, not
+// from the top of the page, keeps these tests independent of when the chart
+// renders and of what comes before it.
+const tabIntoTable = async (page: Page) => {
+    await page.getByRole('slider').focus()
+    await page.keyboard.press('Tab')
+}
+
 const expectNoAxeViolations = async (page: Page) => {
     const { violations } = await new AxeBuilder({ page }).analyze()
     expect(violations.map((violation) => violation.id)).toEqual([])
@@ -184,7 +193,7 @@ test.describe('keyboard', () => {
     }) => {
         await openAt(page, 1440)
 
-        await page.keyboard.press('Tab')
+        await tabIntoTable(page)
         await expect(row(page, 'Company')).toBeFocused()
 
         await page.keyboard.press('ArrowDown')
@@ -217,7 +226,7 @@ test.describe('keyboard', () => {
 
     test('Enter toggles, Space does nothing', async ({ page }) => {
         await openAt(page, 1440)
-        await page.keyboard.press('Tab')
+        await tabIntoTable(page)
         await page.keyboard.press('ArrowDown')
 
         await page.keyboard.press('Enter')
@@ -318,7 +327,7 @@ test.describe('narrow screen (375px)', () => {
             await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)
         ).toBe(true)
 
-        await page.keyboard.press('Tab')
+        await tabIntoTable(page)
         await page.keyboard.press('ArrowDown')
         await page.keyboard.press('ArrowRight')
         await expect(row(page, 'Branch 1')).toHaveAttribute(
@@ -332,7 +341,7 @@ test.describe('narrow screen (375px)', () => {
         page,
     }) => {
         await openAt(page, 375)
-        await page.keyboard.press('Tab')
+        await tabIntoTable(page)
         // Right on the Company row (already open) moves to its name cell
         await page.keyboard.press('ArrowRight')
         await expect(row(page, 'Company').getByRole('rowheader')).toBeFocused()
@@ -361,7 +370,7 @@ test.describe('narrow screen (375px)', () => {
         page,
     }) => {
         await openAt(page, 375)
-        await page.keyboard.press('Tab')
+        await tabIntoTable(page)
         await page.keyboard.press('ArrowDown')
         await page.keyboard.press('ArrowRight')
 

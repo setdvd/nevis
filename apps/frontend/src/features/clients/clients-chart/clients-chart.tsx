@@ -1,7 +1,8 @@
 import type { Company } from '@nevis/api-contract/model'
-import { lazy, Suspense, useMemo } from 'react'
+import { useMemo } from 'react'
 
 import { useI18n } from '../../../i18n/i18n-context'
+import { BarChart } from '../../../ui/bar-chart/bar-chart'
 
 import {
     barTotals,
@@ -9,16 +10,6 @@ import {
     toChartSeries,
     yAxisFor,
 } from './chart-series'
-import { ClientsChartSkeleton } from './clients-chart-skeleton'
-
-// ECharts is a separate chunk. Its download starts when this module loads, in
-// parallel with the data request, so the chart does not wait for it after the
-// data arrives; the table never waits for it.
-const barChartModule = import('../../../ui/bar-chart/bar-chart')
-const BarChart = lazy(async () => {
-    const { BarChart: component } = await barChartModule
-    return { default: component }
-})
 
 export type ClientsChartProps = {
     months: readonly string[]
@@ -59,16 +50,14 @@ export const ClientsChart = ({ months, company }: ClientsChartProps) => {
 
     return (
         <div className="p-6">
-            <Suspense fallback={<ClientsChartSkeleton framed={false} />}>
-                <BarChart
-                    categories={chart.categories}
-                    series={chart.series}
-                    yAxis={chart.yAxis}
-                    description={messages.chart.description}
-                    formatValue={formatNumber}
-                    labels={chart.labels}
-                />
-            </Suspense>
+            <BarChart
+                categories={chart.categories}
+                series={chart.series}
+                yAxis={chart.yAxis}
+                description={messages.chart.description}
+                formatValue={formatNumber}
+                labels={chart.labels}
+            />
         </div>
     )
 }

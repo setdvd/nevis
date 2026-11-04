@@ -2,17 +2,18 @@ import { describe, expect, it } from 'vitest'
 
 import {
     BAR_CHART_PLOT_HEIGHT,
+    barPartPath,
+    categoryAt,
     describeCategory,
+    labelInterval,
+    layoutBars,
     MIN_PART_PX,
-    withMinimumParts,
-    escapeHtml,
+    PLOT_INSETS,
     stepCategory,
-    toBarOption,
-    tooltipHtml,
+    tooltipLeft,
+    withMinimumParts,
 } from './bar-chart-model'
 import type { BarChartSeries } from './bar-chart-model'
-
-const CATEGORIES = ['Jan', 'Feb', 'Mar']
 
 const SERIES: BarChartSeries[] = [
     { name: 'Base', values: [10, 20, 0], color: '#111111' },
@@ -20,99 +21,205 @@ const SERIES: BarChartSeries[] = [
     { name: 'Top', values: [3, 0, 4], color: '#333333' },
 ]
 
-const option = toBarOption({
-    categories: CATEGORIES,
+// 300px of bars: three slots of 100px, bars 80px wide
+const WIDTH = PLOT_INSETS.left + 300 + PLOT_INSETS.right
+const INNER_HEIGHT =
+    BAR_CHART_PLOT_HEIGHT - PLOT_INSETS.top - PLOT_INSETS.bottom
+const BOTTOM = PLOT_INSETS.top + INNER_HEIGHT
+
+const layout = layoutBars({
+    width: WIDTH,
+    categoryCount: 3,
     series: SERIES,
     yAxis: { max: 100, step: 25 },
-    animate: true,
-    tooltip: (index) => `tip ${String(index)}`,
 })
 
-const seriesList = Array.isArray(option.series) ? option.series : []
-
-// reads a nested option value without casts (ECharts option types are wide unions)
-const read = (value: unknown, ...path: string[]): unknown =>
-    path.reduce<unknown>(
-        (current, key) =>
-            typeof current === 'object' && current !== null && key in current
-                ? Reflect.get(current, key)
-                : undefined,
-        value
-    )
-
-const dataOf = (seriesIndex: number) => {
-    const item = seriesList[seriesIndex]
-    return item?.type === 'bar' && Array.isArray(item.data) ? item.data : []
+const close = (actual: readonly number[], expected: readonly number[]) => {
+    expect(actual).toHaveLength(expected.length)
+    actual.forEach((value, index) => {
+        expect(value).toBeCloseTo(expected[index] ?? NaN, 6)
+    })
 }
 
-describe('toBarOption', () => {
-    it('stacks one bar per category, series in order', () => {
-        expect(seriesList.map((item) => [item.name, item.stack])).toEqual([
-            ['Base', 'total'],
-            ['Middle', 'total'],
-            ['Top', 'total'],
+describe('layoutBars', () => {
+    it('gives each category an equal slot and a bar 80% of it, centred', () => {
+        expect(layout.slots.map((slot) => slot.left)).toEqual([40, 140, 240])
+        expect(layout.slots.map((slot) => slot.center)).toEqual([90, 190, 290])
+        const bar = layout.slots[0]?.parts[0]
+        expect(bar?.x).toBeCloseTo(50, 6)
+        expect(bar?.width).toBeCloseTo(80, 6)
+    })
+
+    it('stacks the parts bottom up in series order and leaves out parts of 0', () => {
+        // Jan: Base 10 and Top 3, Middle is 0
+        const parts = layout.slots[0]?.parts ?? []
+        expect(parts.map((part) => part.seriesIndex)).toEqual([0, 2])
+        const pxPerValue = INNER_HEIGHT / 100
+        close(
+            parts.map((part) => part.height),
+            [10 * pxPerValue, 3 * pxPerValue]
+        )
+        // each part sits on the one below, the first on the axis
+        expect(parts[0]?.y).toBeCloseTo(BOTTOM - 10 * pxPerValue, 6)
+        expect(parts[1]?.y).toBeCloseTo(BOTTOM - 13 * pxPerValue, 6)
+    })
+
+    it('rounds the outer corners of each bar only', () => {
+        const corners = (index: number) =>
+            (layout.slots[index]?.parts ?? []).map(({ top, bottom }) => [
+                top,
+                bottom,
+            ])
+        // Jan: Base at the bottom, Top on top
+        expect(corners(0)).toEqual([
+            [0, 4],
+            [4, 0],
         ])
-        expect(option.xAxis).toMatchObject({ data: CATEGORIES })
-    })
-
-    it('passes the values and colours through unchanged', () => {
-        expect(dataOf(0).map((point) => read(point, 'value'))).toEqual([
-            10, 20, 0,
+        // Feb: Base, then Middle on top
+        expect(corners(1)).toEqual([
+            [0, 4],
+            [4, 0],
         ])
-        expect(dataOf(2).map((point) => read(point, 'value'))).toEqual([
-            3, 0, 4,
+        // Mar: only Top -> all four corners
+        expect(corners(2)).toEqual([[4, 4]])
+    })
+
+    it('places a line per step, 0 at the bottom', () => {
+        expect(layout.ticks.map((tick) => tick.value)).toEqual([
+            0, 25, 50, 75, 100,
         ])
-        expect(
-            seriesList.map((item) => read(item, 'itemStyle', 'color'))
-        ).toEqual(['#111111', '#222222', '#333333'])
+        expect(layout.ticks[0]?.y).toBeCloseTo(BOTTOM, 6)
+        expect(layout.ticks.at(-1)?.y).toBeCloseTo(PLOT_INSETS.top, 6)
     })
 
-    it('uses the given axis: 0 to max in steps', () => {
-        expect(option.yAxis).toMatchObject({ min: 0, max: 100, interval: 25 })
-    })
-
-    it('rounds the outer corners of each visible bar only', () => {
-        const corners = (seriesIndex: number, index: number) =>
-            read(dataOf(seriesIndex)[index], 'itemStyle', 'borderRadius')
-
-        // Jan: Base (bottom) and Top (top) visible, Middle is 0
-        expect(corners(0, 0)).toEqual([0, 0, 4, 4])
-        expect(corners(1, 0)).toEqual([0, 0, 0, 0])
-        expect(corners(2, 0)).toEqual([4, 4, 0, 0])
-        // Feb: Base bottom, Middle top
-        expect(corners(0, 1)).toEqual([0, 0, 4, 4])
-        expect(corners(1, 1)).toEqual([4, 4, 0, 0])
-        // Mar: only Top visible -> all four corners
-        expect(corners(2, 2)).toEqual([4, 4, 4, 4])
-    })
-
-    it('turns animation off when asked (reduced motion)', () => {
-        expect(
-            toBarOption({
-                categories: CATEGORIES,
-                series: SERIES,
-                yAxis: { max: 100, step: 25 },
-                animate: false,
-                tooltip: () => '',
-            })
-        ).toMatchObject({
-            animation: false,
-            tooltip: {
-                transitionDuration: 0,
-                axisPointer: { animation: false },
-            },
+    it('draws a 1-client part at least 4px tall, the bar at its true height', () => {
+        const tall = layoutBars({
+            width: WIDTH,
+            categoryCount: 1,
+            series: [
+                { name: 'Existing', values: [331], color: '#111111' },
+                { name: 'Organic', values: [2], color: '#222222' },
+                { name: 'Paid', values: [1], color: '#333333' },
+            ],
+            yAxis: { max: 400, step: 100 },
         })
+        const heights = (tall.slots[0]?.parts ?? []).map((part) => part.height)
+
+        expect(heights[1]).toBeCloseTo(MIN_PART_PX, 6)
+        expect(heights[2]).toBeCloseTo(MIN_PART_PX, 6)
+        expect(heights.reduce((a, b) => a + b, 0)).toBeCloseTo(
+            (334 * INNER_HEIGHT) / 400,
+            6
+        )
+    })
+
+    it('draws nothing wide before the plot width is known', () => {
+        const none = layoutBars({
+            width: 0,
+            categoryCount: 3,
+            series: SERIES,
+            yAxis: { max: 100, step: 25 },
+        })
+        expect(none.slots.map((slot) => slot.width)).toEqual([0, 0, 0])
+    })
+})
+
+describe('barPartPath', () => {
+    it('draws a plain rectangle without corners', () => {
+        expect(
+            barPartPath({
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 20,
+                top: 0,
+                bottom: 0,
+            })
+        ).toBe('M0,0h10v20h-10Z')
+    })
+
+    it('rounds only the edges asked for', () => {
+        expect(
+            barPartPath({
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 20,
+                top: 4,
+                bottom: 0,
+            })
+        ).toBe('M0,4a4,4 0 0 1 4,-4h2a4,4 0 0 1 4,4v16h-10Z')
+        expect(
+            barPartPath({
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 20,
+                top: 0,
+                bottom: 4,
+            })
+        ).toBe('M0,0h10v16a4,4 0 0 1 -4,4h-2a4,4 0 0 1 -4,-4Z')
+    })
+
+    it('never uses a radius bigger than the part allows', () => {
+        // 3px tall with both ends rounded: each end gets half the height
+        expect(
+            barPartPath({ x: 0, y: 0, width: 10, height: 3, top: 4, bottom: 4 })
+        ).toBe(
+            'M0,1.5a1.5,1.5 0 0 1 1.5,-1.5h7a1.5,1.5 0 0 1 1.5,1.5v0a1.5,1.5 0 0 1 -1.5,1.5h-7a1.5,1.5 0 0 1 -1.5,-1.5Z'
+        )
+        // 6px wide: at most 3
+        expect(
+            barPartPath({ x: 0, y: 0, width: 6, height: 20, top: 4, bottom: 0 })
+        ).toBe('M0,3a3,3 0 0 1 3,-3h0a3,3 0 0 1 3,3v17h-6Z')
+    })
+})
+
+describe('labelInterval', () => {
+    it.each([
+        // slot, widest label -> every n-th label
+        [100, 50, 1],
+        [58, 50, 1],
+        [57, 50, 2],
+        // 375px window: 12 slots of ~20.6px, "Feb 2024" ~50px
+        [20.6, 50, 3],
+        [0, 50, 1],
+    ])('slot %fpx, label %fpx -> every %i', (slot, label, every) => {
+        expect(labelInterval(slot, label)).toBe(every)
+    })
+})
+
+describe('categoryAt', () => {
+    it.each([
+        [40, 0],
+        [139.9, 0],
+        [140, 1],
+        [339.9, 2],
+        // the y labels and the right edge are outside every bar's slot
+        [39, undefined],
+        [340, undefined],
+    ])('x %f -> %s', (x, expected) => {
+        expect(categoryAt(x, layout.slots)).toBe(expected)
+    })
+})
+
+describe('tooltipLeft', () => {
+    it('puts the tooltip right of the bar when it fits', () => {
+        expect(tooltipLeft({ left: 40, width: 100 }, 180, 1000)).toBe(148)
+    })
+
+    it('puts it left of the bar near the right edge', () => {
+        expect(tooltipLeft({ left: 800, width: 100 }, 180, 1000)).toBe(612)
+    })
+
+    it('keeps it inside a narrow plot, as close to the bar as it can', () => {
+        expect(tooltipLeft({ left: 120, width: 20 }, 180, 300)).toBe(40)
+        // centred would end past the right edge: flush with it instead
+        expect(tooltipLeft({ left: 150, width: 20 }, 180, 200)).toBe(20)
     })
 })
 
 describe('withMinimumParts', () => {
-    const close = (actual: number[], expected: number[]) => {
-        expect(actual).toHaveLength(expected.length)
-        actual.forEach((value, index) => {
-            expect(value).toBeCloseTo(expected[index] ?? NaN, 6)
-        })
-    }
-
     it('lifts thin parts and takes the extra from the biggest one', () => {
         // 300 / 1 / 10 with a minimum of 4: organic lifted by 3, existing pays
         close(withMinimumParts([300, 1, 10], 4), [297, 4, 10])
@@ -143,52 +250,11 @@ describe('withMinimumParts', () => {
     })
 })
 
-describe('toBarOption with the minimum part height', () => {
-    it('draws a 1-client part at least 4px tall, the bar at its true height', () => {
-        // axis 0..400 on the inner plot (320px minus 16px top, 28px bottom)
-        const pxPerValue = (BAR_CHART_PLOT_HEIGHT - 16 - 28) / 400
-        const tall = toBarOption({
-            categories: ['Jul'],
-            series: [
-                { name: 'Existing', values: [331], color: '#111111' },
-                { name: 'Organic', values: [2], color: '#222222' },
-                { name: 'Paid', values: [1], color: '#333333' },
-            ],
-            yAxis: { max: 400, step: 100 },
-            animate: false,
-            tooltip: () => '',
-        })
-        const drawn = (Array.isArray(tall.series) ? tall.series : []).map(
-            (item) =>
-                read(
-                    Array.isArray(item.data) ? item.data[0] : undefined,
-                    'value'
-                )
-        )
-        const px = drawn.map((value) =>
-            typeof value === 'number' ? value * pxPerValue : NaN
-        )
-
-        expect(px[1]).toBeCloseTo(MIN_PART_PX, 6)
-        expect(px[2]).toBeCloseTo(MIN_PART_PX, 6)
-        expect(px.reduce((a, b) => a + b, 0)).toBeCloseTo(334 * pxPerValue, 6)
-    })
-})
-
 describe('describeCategory', () => {
     it('reads the category, every series and the total', () => {
         expect(describeCategory('Feb', SERIES, 1, 'Total', String)).toBe(
             'Feb: Base 20, Middle 5, Top 0, Total 25'
         )
-    })
-})
-
-describe('tooltipHtml', () => {
-    it('lists every series and the total last', () => {
-        const html = tooltipHtml('Feb', SERIES, 1, 'Total', String)
-        expect(html.indexOf('Base')).toBeLessThan(html.indexOf('Top'))
-        expect(html.lastIndexOf('Total')).toBeGreaterThan(html.indexOf('Top'))
-        expect(html).toContain('>25<')
     })
 
     it('formats the numbers with the given formatter', () => {
@@ -200,36 +266,6 @@ describe('tooltipHtml', () => {
         expect(
             describeCategory('Mai', big, 0, 'Summe', (n) => de.format(n))
         ).toBe('Mai: A 1.234, B 5.000, Summe 6.234')
-        expect(
-            tooltipHtml('Mai', big, 0, 'Summe', (n) => de.format(n))
-        ).toContain('>6.234<')
-    })
-
-    it('escapes names from data', () => {
-        const html = tooltipHtml(
-            '<b>Feb</b>',
-            [
-                {
-                    name: '<img src=x onerror=alert(1)>',
-                    values: [1],
-                    color: '#000000',
-                },
-            ],
-            0,
-            'Total',
-            String
-        )
-        expect(html).not.toContain('<img')
-        expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
-        expect(html).toContain('&lt;b&gt;Feb&lt;/b&gt;')
-    })
-})
-
-describe('escapeHtml', () => {
-    it('escapes the five HTML characters', () => {
-        expect(escapeHtml(`<a href="x">'&'</a>`)).toBe(
-            '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;'
-        )
     })
 })
 

@@ -15,7 +15,10 @@ const openLoaded = async (page: Page, width: number, height: number) => {
     await page.goto('/')
     await expect(page.getByRole('treegrid')).toBeVisible()
     await expect(
-        page.locator('.echarts-for-react svg text').first()
+        page
+            .getByRole('region', { name: 'Clients chart' })
+            .locator('svg text')
+            .first()
     ).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
 }

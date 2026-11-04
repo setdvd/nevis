@@ -19,13 +19,15 @@ const openAt = async (page: Page, width: number) => {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/')
     await expect(chart(page)).toBeVisible()
-    // ECharts draws after the lazy chunk has loaded
+    // the plot draws once it knows its width (before the first paint)
     await expect(card(page).locator('svg text').first()).toBeVisible()
 }
 
-// the visible tooltip (ECharts keeps a faded one in the DOM after hiding)
-const tooltip = (page: Page) =>
-    card(page).locator('.echarts-for-react > div').filter({ hasText: 'Total' })
+// the plot's SVG (the drawing; the legend and data table are HTML)
+const plot = (page: Page) => card(page).locator('svg')
+
+// in the DOM only while shown
+const tooltip = (page: Page) => card(page).locator('[data-chart-tooltip]')
 
 test.describe('data in the chart', () => {
     test('one bar per month, 0 to 400, the delivered series in the legend', async ({
@@ -90,17 +92,15 @@ test.describe('data in the chart', () => {
 
     test('hovering a month shows its parts and the total', async ({ page }) => {
         await openAt(page, 1440)
-        const plot = await card(page)
-            .locator('.echarts-for-react')
-            .boundingBox()
-        if (plot === null) {
+        const box = await plot(page).boundingBox()
+        if (box === null) {
             throw new Error('chart not drawn')
         }
 
         // Jul 2024: the 6th of 12 bars (grid: 40px left, 8px right)
         await page.mouse.move(
-            plot.x + 40 + ((plot.width - 48) * 5.5) / 12,
-            plot.y + plot.height / 2
+            box.x + 40 + ((box.width - 48) * 5.5) / 12,
+            box.y + box.height / 2
         )
 
         await expect(tooltip(page)).toContainText('Jul 2024')
@@ -109,6 +109,32 @@ test.describe('data in the chart', () => {
         )
         // the pointer does not move the keyboard month
         expect(await activeMonth(page)).toBe('Feb 2024')
+
+        // off the bars (on the value labels), the tooltip goes
+        await page.mouse.move(box.x + 10, box.y + box.height / 2)
+        await expect(tooltip(page)).toBeHidden()
+    })
+
+    test('the tooltip stays inside the chart, also for the last month at 375px', async ({
+        page,
+    }) => {
+        await openAt(page, 375)
+        await chart(page).focus()
+        await page.keyboard.press('End')
+
+        await expect(tooltip(page)).toContainText('Jan 2025')
+        const inside = await card(page).evaluate((section) => {
+            const card = section.getBoundingClientRect()
+            const tip = section
+                .querySelector('[data-chart-tooltip]')
+                ?.getBoundingClientRect()
+            return (
+                tip !== undefined &&
+                tip.left >= card.left &&
+                tip.right <= card.right
+            )
+        })
+        expect(inside).toBe(true)
     })
 })
 

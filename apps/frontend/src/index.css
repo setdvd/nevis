@@ -17,9 +17,15 @@
     --color-skeleton: #ecebe6;
     --color-focus: #2f5bd3;
 
+    /* chart series, read as var() by features/clients/clients-chart/chart-series.ts;
+       extra-*: channels the delivered data does not have */
     --color-series-existing: #b29df8;
     --color-series-organic: #f4beb4;
     --color-series-paid: #a75e6e;
+    --color-series-extra-1: #5b8def;
+    --color-series-extra-2: #3fb68b;
+    --color-series-extra-3: #e8a33d;
+    --color-series-extra-4: #4bb3c8;
 
     --radius-card: 8px;
     --container-content: 1408px;

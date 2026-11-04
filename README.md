@@ -21,9 +21,9 @@ You need [nvm](https://github.com/nvm-sh/nvm).
 
 | Command            | What it does                                                                                                                                           |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm check`       | lint (0 warnings), format check, typecheck, unit tests in every package (147 tests)                                                                    |
+| `pnpm check`       | lint (0 warnings), format check, typecheck, unit tests in every package (161 tests)                                                                    |
 | `pnpm e2e:install` | installs Chromium for the browser tests, once per machine                                                                                              |
-| `pnpm check:e2e`   | builds the web app, starts the API (8787) and the preview (4173), runs 49 Playwright tests. The ports must be free, so stop `pnpm dev` first           |
+| `pnpm check:e2e`   | builds the web app, starts the API (8787) and the preview (4173), runs 50 Playwright tests. The ports must be free, so stop `pnpm dev` first           |
 | `pnpm storybook`   | every UI component and both cards in every load state, with the accessibility addon, on http://localhost:6006                                          |
 | `pnpm screenshots` | regenerates the pictures above                                                                                                                         |
 | `pnpm generate`    | regenerates types, client and mocks from `packages/api-contract/openapi.yaml`; `pnpm check:generated` fails when the committed generated code is stale |
@@ -31,21 +31,37 @@ You need [nvm](https://github.com/nvm-sh/nvm).
 What the tests cover:
 
 - **Expand / collapse** (`apps/frontend/e2e/table.e2e.ts`): mouse, keyboard, closing a parent closes its children, leaf rows do nothing, `treegrid` levels and expanded states, 375px, axe.
-- **Data to chart** (`clients-chart/chart-series.test.ts`, `ui/bar-chart/bar-chart-model.test.ts`): the split per month (Feb 250/0/0, Jul 331/2/1, Jan 346/2/2), every bar = the stored Company value, extra or missing channels, stacking, rounded corners, minimum part height, tooltip text. In the browser: axis, legend, tooltip, keyboard stepping, data table (`e2e/chart.e2e.ts`).
+- **Data to chart** (`clients-chart/chart-series.test.ts`, `ui/bar-chart/bar-chart-model.test.ts`): the split per month (Feb 250/0/0, Jul 331/2/1, Jan 346/2/2), every bar = the stored Company value, extra or missing channels, the bar geometry (slots, stacking, rounded outer corners, minimum part height), month labels thinned so they never overlap, which month the pointer is on, tooltip placement inside the plot. In the browser: axis, legend, tooltip (also inside the card for the last month at 375px), keyboard stepping, data table (`e2e/chart.e2e.ts`).
 - **Load states** (`e2e/dashboard.e2e.ts`): real API, slow / fast load, 500 with one retry, Retry and its focus, timeout, network error, non-JSON body, offline, crash fallback; axe in each state at 375 and 1440px. Mocks are fixed responses through MSW, never random data.
-- **Performance** (`e2e/perf.e2e.ts`, CPU throttled 4x): initial JS 143 kB gzip (budget 200), LCP ~290 ms, CLS 0, every interaction paints within 200 ms.
+- **Performance** (`e2e/perf.e2e.ts`, CPU throttled 4x): all JS in one file, 134 kB gzip (budget 200, nothing lazy-loaded), LCP ~280 ms on localhost, CLS 0, every interaction paints within 200 ms. Under mobile network conditions see [Performance](#performance).
 
 Loading and error states by hand: open the `ChartCard` / `TableCard` stories, or stop the API while `pnpm dev` runs and reload.
 
 ## How it is built
 
-pnpm workspace: `apps/backend` (Hono), `apps/frontend` (React 19, Vite, TanStack Query, react-aria-components, Tailwind 4, ECharts), `packages/api-contract` (OpenAPI -> orval: TS types, query client, MSW mocks), `packages/utils`.
+pnpm workspace: `apps/backend` (Hono), `apps/frontend` (React 19, Vite, TanStack Query, react-aria-components, Tailwind 4, a hand-written SVG chart), `packages/api-contract` (OpenAPI -> orval: TS types, query client, MSW mocks), `packages/utils`.
 
 The frontend has three layers, enforced by ESLint: `ui/` is domain-free (Card, Button, Table, BarChart, ...), `features/clients/` maps the data to `ui/` props, `app/` composes the page. Every component has one job: `ClientsLoader` is the only one that fetches and shows the loading and error states (taking the TanStack Query result as is) and hands the data to `ClientsDashboard`; the cards, the table and the chart only render the data they get; state and side effects sit in named hooks (`useExpandedRows`, `useDataIssues`, `useCategoryKeyboard`, ...). The plan, task split and every decision in detail: [PLAN.md](PLAN.md).
 
+## Performance
+
+Measured on the production build under Lighthouse's mobile conditions (150 ms round trip, 1.6 Mbps, CPU 4x slower), median of 5 loads:
+
+|                     | With ECharts (lazy chunk) |                    Now |
+| ------------------- | ------------------------: | ---------------------: |
+| JS transferred      |                    317 kB |       134 kB, one file |
+| Table shown         |                    1.87 s |                 1.80 s |
+| Chart shown         |                    2.71 s | 1.80 s, with the table |
+| Interactive (≈ TTI) |                    2.71 s |                 1.80 s |
+| Total blocking time |                    138 ms |                  59 ms |
+
+**No chart library.** ECharts, even tree-shaken to bars, grid, tooltip and the SVG renderer, was a 178 kB gzip chunk. On a phone it arrived almost a second after the table and then blocked the page for 130-140 ms, so the page was interactive only at 2.7 s; and if that chunk failed to load (a network blip, an old tab after a deploy), the whole page fell to "Something went wrong", table included. The chart here is 12 stacked bars, a few value lines, month labels and one tooltip, so it is now plain React + SVG in `apps/frontend/src/ui/bar-chart/` (7.7 kB minified): the geometry is pure and unit-tested (`bar-chart-model.ts`), the width comes from one `ResizeObserver`, month labels are measured before the first paint and the ones that would overlap are left out, the tooltip is React text (no HTML strings from data), and the colours are the CSS design tokens. It draws together with the table, so there is nothing left to wait for or to fail later. Given up: ECharts' grow-in animation and the sliding tooltip. With richer charts (other types, zoom, thousands of points) a library is worth it again; then load it lazily behind its own error boundary, so the table never depends on it.
+
+**react-aria texts in one language.** react-aria-components ships its built-in texts (such as the table's screen-reader strings) in about 34 languages: 33 kB of our bundle (minified) for languages the app never shows. `@react-aria/optimize-locales-plugin` in `vite.config.ts` keeps only the locales in `apps/frontend/src/i18n/locales.ts` (`en-US` today, 0.7 kB left). The app takes its own locale from the same list, so a new language added there keeps its react-aria texts too.
+
 ## Text and languages
 
-All user-facing text is in one typed catalog, `apps/frontend/src/i18n/en.ts` (shape: `messages.ts`); components read it with `useI18n()`, `ui/` components get their text as props. Text with values is a function (`load.error(reason)`, `chart.label(from, to)`), so a translation can order the words its own way; numbers and months are formatted for the locale with `Intl`. Adding a language = a second catalog of type `Messages` and its locale in `app/providers.tsx`; the provider also sets the page's `lang` and title. The `GermanFormatting` stories show `de-DE` formatting (months and numbers). Not translated: channel names (they come from the data), the data issue reports (dev console / Sentry), and the `: ` / `, ` separators of the chart's month text.
+All user-facing text is in one typed catalog, `apps/frontend/src/i18n/en.ts` (shape: `messages.ts`); components read it with `useI18n()`, `ui/` components get their text as props. Text with values is a function (`load.error(reason)`, `chart.label(from, to)`), so a translation can order the words its own way; numbers and months are formatted for the locale with `Intl`. Adding a language = a second catalog of type `Messages`, its locale in `i18n/locales.ts` (which also keeps react-aria's own texts for it in the build, see [Performance](#performance)) and choosing it in `app/providers.tsx`; the provider also sets the page's `lang` and title. The `GermanFormatting` stories show `de-DE` formatting (months and numbers). Not translated: channel names (they come from the data), the data issue reports (dev console / Sentry), and the `: ` / `, ` separators of the chart's month text.
 
 Why no i18n library: one language, ~25 strings and no plurals, so a typed catalog plus `Intl` does the job with compile-time checks and 0 kB. With real translations, plurals or a translation tool, switch to react-intl or Lingui; every text is already behind `useI18n()`, so the components would not change (details at the top of `i18n/messages.ts`). Still to do: pass the locale to react-aria-components' own `I18nProvider` too, for its built-in screen-reader text and right-to-left layout.
 
@@ -90,7 +106,7 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 - The legend is a plain list, **not clickable**: hiding a series would make bars shorter than their totals.
 - **Name column**: on wide screens it is as wide as the names (at least 240px, at most 320px of text; longer names end with "..."), so no name is cut today.
 - **375px**: the table scrolls inside its card with a sticky 160px name column (edge shadow while scrolled); long names end with "..." and show in full while the row has keyboard focus; the indent per level shrinks from 28 to 12px. The chart hides month labels that would overlap; every month stays in the tooltip and the data table.
-- Opened rows slide in; nothing animates with reduced motion.
+- Opened rows slide in; nothing animates with reduced motion. The chart does not animate: bars appear at full height and the tooltip moves straight to the next month.
 
 ## Keyboard
 
@@ -105,7 +121,7 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 - A non-JSON error body (e.g. a proxy's 502 HTML page) shows "The data was not valid." instead of the server error: the generated client fails to parse it before it sets the status.
 - **Data issues are not reported from production yet**: the Sentry call in `apps/frontend/src/reporting/report-data-issue.ts` is a TODO, so only the dev console shows them.
 - The sticky column's edge shadow uses CSS scroll timelines; browsers without them show no shadow.
-- The ECharts chunk is 178 kB gzip, even tree-shaken. It loads in parallel with the data and never blocks the table.
+- The data request starts only once the JS has run (about 1.5 s on a phone); `e2e/perf.e2e.ts` throttles the CPU but not the network, so it does not see that.
 
 ## Open questions
 
@@ -117,5 +133,5 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 - Set up Sentry and make the TODO in `reportDataIssue` the real call, so every data issue found in production reaches the data owner.
 - Fix the data at the source and move the checks to the backend; store counts only at the lowest level, with an explicit channel per count.
 - Check the UI against the Figma file and with VoiceOver / NVDA, and add Firefox and WebKit to the browser tests.
-- Get the chart chunk smaller (or try a lighter chart library) and split the row render further if real devices show slow interactions.
+- Start the data request from the HTML (`<link rel="preload" as="fetch">`: measured, it starts at 0.17 s instead of 1.5 s), decide on the font preload (without it the first paint comes ~0.3 s earlier, but the font visibly swaps in), and add a network-throttled load test. Split the row render further if real devices show slow interactions.
 - Serve the avatars from a CDN and move the base URL to configuration.

@@ -4,16 +4,16 @@ import type { Company } from '@nevis/api-contract/model'
 // matched as stored, not display text (the label comes from the messages).
 const EXISTING_CHANNEL = 'Existing clients'
 
-// Same hex as --color-series-* in index.css (checked in the test): ECharts
-// needs real colours, it cannot resolve CSS variables.
-export const EXISTING_COLOR = '#b29df8'
+// The design tokens --color-series-* of index.css (each one checked to exist
+// in the test): the chart is drawn with SVG and CSS, so it takes CSS colours.
+export const EXISTING_COLOR = 'var(--color-series-existing)'
 export const CHANNEL_COLORS = [
-    '#f4beb4',
-    '#a75e6e',
-    '#5b8def',
-    '#3fb68b',
-    '#e8a33d',
-    '#4bb3c8',
+    'var(--color-series-organic)',
+    'var(--color-series-paid)',
+    'var(--color-series-extra-1)',
+    'var(--color-series-extra-2)',
+    'var(--color-series-extra-3)',
+    'var(--color-series-extra-4)',
 ] as const
 
 const AXIS_STEP = 100

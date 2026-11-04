@@ -35,9 +35,9 @@ Hard requirements from the brief:
 | API contract        | OpenAPI 3.1 (`openapi.yaml`) -> **orval** -> TS types, TanStack Query fetch client, MSW mocks (types only, no runtime validation)           |
 | Web                 | React 19, Vite 8, `@vitejs/plugin-react`                                                                                                    |
 | Data fetching       | TanStack Query 5 (generated `useGetClients`)                                                                                                |
-| UI primitives       | `react-aria-components` (tree `Table`, `Button`): keyboard and ARIA built in                                                                |
+| UI primitives       | `react-aria-components` (tree `Table`, `Button`): keyboard and ARIA built in; its texts for `APP_LOCALES` only (decision 14)                |
 | Styling             | Tailwind CSS 4 (`@tailwindcss/vite`), `tailwind-variants`, `tailwindcss-react-aria-components`                                              |
-| Chart               | ECharts 6 (tree-shaken core, SVG renderer) + `echarts-for-react`                                                                            |
+| Chart               | hand-written SVG (`ui/bar-chart`), no chart library (decision 13; ECharts 6 until T8.6)                                                     |
 | Icons / font        | `lucide-react`, `@fontsource-variable/inter` (optical size axis)                                                                            |
 | Dates               | native `Intl.DateTimeFormat`, no date library (bundle size); switch to `date-fns` only if date needs grow                                   |
 | Unit tests          | Vitest 5                                                                                                                                    |
@@ -183,7 +183,8 @@ nevis/
             │   ├── messages.ts            Messages type: every user-facing text, by place
             │   ├── en.ts                  the English catalog
             │   ├── i18n-context.ts        createI18n, useI18n (locale, messages, formatNumber, formatMonth)
-            │   └── i18n-provider.tsx      I18nProvider (also sets <html lang> and the title)
+            │   ├── i18n-provider.tsx      I18nProvider (also sets <html lang> and the title)
+            │   └── locales.ts             APP_LOCALES: the app's locales, also the react-aria texts kept in the build
             ├── reporting/
             │   └── report-data-issue.ts (+test)   reportDataIssue: every data integrity issue, once per page load (dev console now, Sentry TODO)
             ├── app/
@@ -214,7 +215,7 @@ nevis/
             │       └── table-tree.ts (+test)        company -> uniform tree, collapseKeys, nextExpanded
             └── ui/                  one folder per component, each with *.stories.tsx
                 ├── avatar/          photo (src) with initials + tint fallback (+ helpers test)
-                ├── bar-chart/       BarChart = BarChartPlot (ECharts) + useCategoryKeyboard + legend + sr data table; pure bar-chart-model
+                ├── bar-chart/       BarChart = BarChartPlot (SVG) + BarChartTooltip + useCategoryKeyboard + legend + sr data table; pure bar-chart-model (geometry); useElementWidth, useWidestLabel
                 ├── button/
                 ├── card/            white surface, region named by an sr-only h2
                 ├── heading/         Heading levels 1-3
@@ -275,6 +276,8 @@ Decision: show stored values unchanged. The checks run on the FE (decision 11): 
 10. **No runtime schema validation anywhere (types only).** API and web client trust the OpenAPI contract and use the orval-generated TS types; no zod. The data is a static, typed fixture, so the compiler already guarantees its shape; runtime checks would only repeat that and add bundle size. Value rules the types cannot express (12 values, integers >= 0, UUIDs) are documented in `openapi.yaml`, not enforced.
 11. **Data checks live on the FE for now.** This is an FE-oriented task, so the BE stays a thin "serve the data as is" layer and is barely touched. The FE detects sum mismatches and missing channels (`findDataIssues`), shows stored values unchanged, and marks the mismatches. The right long-term owner is the BE / data owner: **we should talk to the BE team to fix the discrepancies on the BE**; we do it on the FE only to ship faster. Code comments at both places say so.
 12. **Every data integrity issue is reported.** Data that contradicts itself or the contract (today: the 7 sum mismatches and the 6 nodes without a breakdown) goes to `reportDataIssue` (`apps/frontend/src/reporting/report-data-issue.ts`), once per issue and page load, in every build. Today it writes a `console.warn` in dev and nothing in production; it should report to Sentry (warning level, one fingerprint per issue, structured details), written there as a TODO until Sentry is set up. Every new check reports through it too; showing a marker or falling back silently is not enough. Value rules the types cannot express stay unchecked (decision 10); a check added for them reports the same way.
+13. **No chart library: the chart is hand-written SVG** (T8.6, replaces ECharts). Measured on the production build under Lighthouse mobile conditions (150 ms RTT, 1.6 Mbps, 4x CPU, median of 5): ECharts, tree-shaken to bars + grid + tooltip + SVG renderer, was still a 178 kB gzip chunk (ECharts + zrender ~490 kB minified). It arrived ~0.85 s after the table and then held the main thread for 130-140 ms, so the page became interactive at 2.71 s; and when the chunk failed to load (network, an old tab after a deploy) the whole page fell to the crash screen, table included. The chart needs 12 stacked bars, 5 value lines, month labels and a tooltip: about 370 lines of React + SVG without comments (plot, tooltip, two hooks, geometry; 7.7 kB minified for all of `ui/bar-chart`). Now the chart draws in the same commit as the table and the page is interactive at 1.80 s (blocking time 138 -> 59 ms, JS 317 -> 134 kB). Pure geometry in `bar-chart-model.ts` (unit-tested); size from one `ResizeObserver`; month labels measured before the first paint, overlapping ones left out; the tooltip is React text (no HTML strings to escape); colours are the CSS tokens (ECharts needed hex copies). Given up: ECharts' grow-in animation and tooltip slide (none was in the brief). Revisit when the charts get richer (other chart types, zoom, thousands of points): then a library, lazy-loaded behind its own error boundary so the table never depends on it.
+14. **react-aria texts for the app's languages only.** react-aria-components ships its built-in texts (e.g. the table's screen-reader strings) in ~34 languages: 33 kB of the bundle (minified) that this English-only app never shows. `@react-aria/optimize-locales-plugin` in `vite.config.ts` keeps the locales of `APP_LOCALES` (`src/i18n/locales.ts`, `en-US` today; 0.7 kB left), the same list `app/providers.tsx` takes its locale from, so adding a language to the app keeps its react-aria texts too.
 
 ## 7. Task split
 
@@ -341,10 +344,10 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 ### Phase 6: Clients chart (1.75 h), core, done
 
 - [x] T6.1 `toChartSeries({ months, company })`: decision 3. Expected for the delivered data: Feb 250/0/0, Jul 331/2/1, Jan 346/2/2; every bar total equals the Company value. `toChartSeries(company)` + `barTotals`; months are formatted in `ClientsChart`.
-- [x] T6.2 `yAxisFor(maxTotal)`: steps of 100, top = next multiple above the highest bar (350 -> 400); `seriesColors`: fixed colour for Existing, palette in order for the rest. Series hex colours are checked against the `--color-series-*` tokens in `index.css` (ECharts cannot resolve CSS variables).
-- [x] T6.3 `ui/bar-chart`: ECharts core + SVG renderer, lazy-loaded chunk; stacked bars with 4px rounded outer corners; HTML legend below the plot (not clickable, wraps); tooltip with every series + "Total"; month labels thin out on narrow screens; no animation with reduced motion. Built as `ui/bar-chart` (domain-free) + pure `bar-chart-model.ts` (option builder, month text, tooltip HTML with escaping of names from data, keyboard step). Rounded corners per data item (the plan's fallback, no custom series). Bundle: initial JS 148 kB gzip (react-dom + react-aria); the chart chunk is 178 kB gzip, 98% ECharts + zrender even tree-shaken; its download starts when `clients-chart.tsx` loads, in parallel with the data.
+- [x] T6.2 `yAxisFor(maxTotal)`: steps of 100, top = next multiple above the highest bar (350 -> 400); `seriesColors`: fixed colour for Existing, palette in order for the rest. Series hex colours are checked against the `--color-series-*` tokens in `index.css` (ECharts cannot resolve CSS variables). Since T8.6 the colours are the tokens themselves (`var(--color-series-*)`); the test checks each one exists.
+- [x] T6.3 `ui/bar-chart`: ECharts core + SVG renderer, lazy-loaded chunk; stacked bars with 4px rounded outer corners; HTML legend below the plot (not clickable, wraps); tooltip with every series + "Total"; month labels thin out on narrow screens; no animation with reduced motion. Built as `ui/bar-chart` (domain-free) + pure `bar-chart-model.ts` (option builder, month text, tooltip HTML with escaping of names from data, keyboard step). Rounded corners per data item (the plan's fallback, no custom series). Bundle: initial JS 148 kB gzip (react-dom + react-aria); the chart chunk is 178 kB gzip, 98% ECharts + zrender even tree-shaken; its download starts when `clients-chart.tsx` loads, in parallel with the data. **Replaced in T8.6** by a hand-written SVG chart with the same props and behaviour (decision 13).
 - [x] T6.4 Accessibility: drawing aria-hidden; one focusable wrapper (`role="slider"`, `aria-roledescription="chart"`, `aria-valuetext` = month text); Left/Right/Up/Down/Home/End step months and show the tooltip; Escape hides it; sr-only data table (month x series + Total) after the chart. `aria-valuenow` 1-12, value text in the tooltip's words; keyboard focus (`:focus-visible`) starts at the first month, a click does not; blur ends the session; hover does not change the value.
-- [x] T6.5 `ClientsChartSkeleton` (12 bars + legend line, same height). Shares `BAR_CHART_PLOT_HEIGHT` with the chart (from the ECharts-free model file); is also the `Suspense` fallback while the chunk loads.
+- [x] T6.5 `ClientsChartSkeleton` (12 bars + legend line, same height). Shares `BAR_CHART_PLOT_HEIGHT` with the chart (from the ECharts-free model file); was also the `Suspense` fallback while the chunk loaded (no chunk since T8.6).
 - [x] T6.6 _stretch_: every non-zero part at least 4px tall (pixels taken from the biggest part). Done: `withMinimumParts` in value units (the inner plot height is fixed, 276 px), so every new-client part is visible; tooltip and data table keep the real numbers.
 - [x] Tests: unit 17 `chart-series` (delivered split Feb 250/0/0, Jul 331/2/1, Jan 346/2/2, totals = Company values, stored "Existing clients" channel ignored, extra "Referral", missing "New paid", sum over advisors, new > Company -> Existing 0, no channels at all, `yAxisFor`, colours, tokens) + 30 `bar-chart-model` (stacking, values, colours, axis, outer corners, animation off, minimum part height incl. 8/8/1/1 -> 4/6/4/4 and tiny bar growth, month text, tooltip escaping, keyboard steps). Browser `e2e/chart.e2e.ts` (11): axis 0-400, 12 bars, legend; data table with every total = stored Company value; hover Jul tooltip, value unchanged; Tab shows Feb, arrows / Home / End without wrap, no page scroll; value = tooltip words; Escape keeps the month, leaving resets; 375 px no page scroll and no overlapping labels; placeholder height = chart card height (1440 / 375); axe with the chart focused (1440 / 375). Stories: `ui/bar-chart` Default / SmallParts / ManySeries / Narrow; chart card Loaded now shows the chart.
 
@@ -364,6 +367,8 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 - [x] T8.3 Final `pnpm check` + `pnpm check:e2e`. Both green (see the final run).
 - [x] T8.4 Data issue reporting (decision 12): `reporting/report-data-issue.ts` `reportDataIssue({ key, message, details })`, deduplicated by key per page load, `console.warn` in dev, the Sentry call as a TODO; `findDataIssues` results go through `reportDataIssues` (replaces `warnDataIssues`), in every build. Tests: once per key, no console output in production, the 13 reports with their details.
 - [ ] T8.5 Set up Sentry and turn the TODO in `reportDataIssue` into the real call, so data issues from production reach the data owner.
+- [x] T8.6 Performance follow-up from a review under mobile throttling (decisions 13 and 14): ECharts replaced by a hand-written SVG chart (same `BarChart` props, keyboard, value text, legend, data table, 4px minimum parts, rounded outer corners, label thinning, tooltip inside the plot); react-aria locales cut to `APP_LOCALES`; series colours are CSS tokens (`--color-series-*`, `extra-1..4` for channels the data does not have). Also fixed: 5 table e2e tests pressed Tab once and expected the Company row, which only held while the lazy chart had not rendered yet; they now Tab in from the chart (`tabIntoTable`). Tests: `bar-chart-model` geometry (slots, stacking, corners, ticks, minimum part, paths, label interval, hit-test, tooltip placement); e2e tooltip leaves with the pointer and stays inside the card for the last month at 375 px; perf: all JS loads up front (no lazy chunk), 134 kB gzip.
+- [ ] T8.7 Start `/clients` from the HTML (`<link rel="preload" href="/clients" as="fetch" crossorigin="anonymous">`): measured, the request starts at 0.17 s instead of 1.5 s, one request per load. Check the request-count e2e tests with it (only a 200 was checked). Decide on the font preload: without it the first paint is ~330 ms earlier (CLS 0.0004) but the font visibly swaps in at ~2 s. Add a network-throttled load test: `perf.e2e.ts` throttles the CPU only, so it cannot see request waterfalls.
 
 ## 8. Priorities if time runs out
 
@@ -405,10 +410,10 @@ Layout stability (CLS):
 
 JavaScript and React:
 
-- **ECharts tree-shaken** (`echarts/core` + `BarChart`, grid, tooltip, SVG renderer only) and **lazy-loaded** (`React.lazy` for `ClientsChart`; the skeleton is the `Suspense` fallback). The table does not wait for the chart chunk.
-- SVG renderer: 36 bars is few elements; it stays sharp and needs no canvas re-raster on resize.
-- Pure mappings (`toTableTree`, `toChartSeries`, `yAxisFor`) run once per `query.data` (`useMemo` keyed on the data); ECharts `option` is stable between renders, so `echarts-for-react` does not call `setOption` again on unrelated re-renders.
-- Chart keyboard stepping and tooltip use `dispatchAction` (no React state per hover/keypress, no re-render of the chart).
+- **No chart library** (decision 13): the chart is ~40 SVG elements drawn by React in the same commit as the table; no lazy chunk, nothing to wait for or to fail later. It stays sharp and needs no canvas re-raster on resize.
+- **react-aria texts for `APP_LOCALES` only** (decision 14): 33 kB minified of other languages removed at build time.
+- Pure mappings (`toTableTree`, `toChartSeries`, `yAxisFor`) run once per `query.data` (`useMemo` keyed on the data); the bar geometry (`layoutBars`) once per width and data.
+- Chart keyboard stepping and hover set one state (the tooltip's month); a step re-renders the chart only (~40 elements, under 30 ms per step at 4x CPU).
 - Expand/collapse renders only the visible rows (RAC tree `Table` with `expandedKeys`); collapsed subtrees are not in the DOM.
 - One request (`staleTime: Infinity`, no focus refetch); the fixture response gets `Cache-Control` and gzip in the API.
 - Advisor photos: 64x64 JPEG (2.4 kB each), cached a day, loaded lazily only for visible advisor rows (Branch 1 open). In production: from a CDN.
@@ -417,12 +422,24 @@ JavaScript and React:
 
 Checks: `pnpm build` prints chunk sizes (budget above); Lighthouse mobile run and a Chrome Performance trace (expand Branch 1 + Anna, step the chart with the keyboard) before Phase 8; results go into the README.
 
+Load under Lighthouse mobile conditions (production build, 150 ms RTT, 1.6 Mbps down, 4x CPU, 412 px, cache off, median of 5; scripted with Playwright + CDP, T8.6):
+
+|                        | ECharts, lazy chunk | SVG chart, locales cut (now) |
+| ---------------------- | ------------------: | ---------------------------: |
+| JS transferred         |  317 kB (144 + 173) |             134 kB, one file |
+| First paint            |              1.61 s |                       1.54 s |
+| Table shown            |              1.87 s |                       1.80 s |
+| Chart shown            |              2.71 s |                       1.80 s |
+| Last long task (≈ TTI) |              2.71 s |                       1.80 s |
+| Total blocking time    |              138 ms |                        59 ms |
+
+Still open (T8.7): the data request starts only after the JS has run; the font preload shares the bandwidth with the JS.
+
 ## 11. Risks and open items
 
 - **Figma not readable from this session.** Visual values (colours, spacing, radius, font sizes) are provisional. Check them against the Figma in Phase 3.
 - **Node 26 is required** (`.nvmrc`). Run `nvm install` and `npm i -g pnpm@12` once (Node 26 does not ship corepack).
 - **RAC tree table**: `treeColumn` / `expandedKeys` on `Table` is newer API. If it misbehaves, fall back to a hand-written `role="treegrid"` table with roving `tabIndex`.
-- **ECharts rounded stacked bars**: the per-stack rounded outline needs a custom series. Fallback: standard stacked `bar` with `borderRadius` on the top/bottom visible part.
 - **Data issue reports go nowhere in production yet**: the Sentry call in `reportDataIssue` is a TODO (decision 12, T8.5); until then only the dev console shows them.
 - **Data discrepancies belong to the BE**: the checks are on the FE only to ship faster (decision 11). Raise the 7 mismatches with the BE team / data owner and move the checks to the BE once they own them.
 - **Open question for the product owner**: should "no channel recorded" be an explicit channel? It decides what "Existing clients" means in the chart (decision 3).

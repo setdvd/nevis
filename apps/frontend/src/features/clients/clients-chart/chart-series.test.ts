@@ -151,7 +151,11 @@ describe('yAxisFor', () => {
 
 describe('seriesColors', () => {
     it('gives the design colours to the delivered series', () => {
-        expect(seriesColors(series)).toEqual(['#b29df8', '#f4beb4', '#a75e6e'])
+        expect(seriesColors(series)).toEqual([
+            'var(--color-series-existing)',
+            'var(--color-series-organic)',
+            'var(--color-series-paid)',
+        ])
     })
 
     it('keeps the Existing colour and takes the palette in order for others', () => {
@@ -169,18 +173,22 @@ describe('seriesColors', () => {
         expect(colors.slice(1)).toEqual([...CHANNEL_COLORS, CHANNEL_COLORS[0]])
     })
 
-    it('matches the series tokens in index.css', () => {
+    it('uses only colour tokens that index.css defines', () => {
         const css = readFileSync(
             new URL('../../../index.css', import.meta.url),
             'utf8'
         )
-        const token = (name: string) =>
-            new RegExp(`--color-series-${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(
-                css
-            )?.[1]
+        const defined = (color: string) => {
+            const name = /^var\((--color-series-[a-z0-9-]+)\)$/.exec(color)?.[1]
+            return (
+                name !== undefined &&
+                new RegExp(`${name}:\\s*#[0-9a-f]{6};`, 'i').test(css)
+            )
+        }
 
-        expect([token('existing'), token('organic'), token('paid')]).toEqual(
-            seriesColors(series)
-        )
+        expect([EXISTING_COLOR, ...CHANNEL_COLORS].filter(defined)).toEqual([
+            EXISTING_COLOR,
+            ...CHANNEL_COLORS,
+        ])
     })
 })

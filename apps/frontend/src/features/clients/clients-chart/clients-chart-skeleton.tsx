@@ -17,20 +17,10 @@ const BAR_HEIGHTS = [
     'h-[86%]',
 ]
 
-export type ClientsChartSkeletonProps = {
-    // false inside ClientsChart, which already has the card padding
-    framed?: boolean
-}
-
-// Same layout and height as the chart: plot + 16px gap + one legend line, so
-// nothing moves when the data (or the chart chunk) arrives.
-export const ClientsChartSkeleton = ({
-    framed = true,
-}: ClientsChartSkeletonProps) => (
-    <div
-        aria-hidden="true"
-        className={`flex flex-col gap-4 ${framed ? 'p-6' : ''}`}
-    >
+// Same layout and height as the chart card: padding, plot + 16px gap + one
+// legend line, so nothing moves when the data arrives.
+export const ClientsChartSkeleton = () => (
+    <div aria-hidden="true" className="flex flex-col gap-4 p-6">
         <div
             className="flex items-end gap-2 sm:gap-6"
             style={{ height: BAR_CHART_PLOT_HEIGHT }}
