@@ -1,0 +1,20 @@
+# deps / build
+node_modules
+dist
+storybook-static
+test-results
+playwright-report
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# env
+.env*
+
+# editor / os
+.vscode/
+.idea/
+*.swp
+.DS_Store

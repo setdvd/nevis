@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: Clients API
+  version: 1.0.0
+  description: >
+    Client counts per month for a company tree. Types only: neither side
+    validates at runtime. Value rules below (12 values, integers >= 0, UUIDs,
+    YYYY-MM) are the contract, not enforced checks.
+paths:
+  /clients:
+    get:
+      operationId: getClients
+      responses:
+        "200":
+          description: Clients data, served as stored (totals are not corrected)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientsResponse"
+        "500":
+          description: Unhandled server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+components:
+  schemas:
+    MonthlyValues:
+      description: One count per month, in the order of `months`
+      type: array
+      items:
+        type: integer
+        minimum: 0
+      minItems: 12
+      maxItems: 12
+    AcquisitionChannel:
+      type: object
+      additionalProperties: false
+      required: [id, name, values]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        values: { $ref: "#/components/schemas/MonthlyValues" }
+    Advisor:
+      description: Missing `channels` means the advisor is a leaf
+      type: object
+      additionalProperties: false
+      required: [id, name, values]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        values: { $ref: "#/components/schemas/MonthlyValues" }
+        channels:
+          type: array
+          items: { $ref: "#/components/schemas/AcquisitionChannel" }
+    Branch:
+      description: Missing `employees` means the branch is a leaf
+      type: object
+      additionalProperties: false
+      required: [id, name, values]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        values: { $ref: "#/components/schemas/MonthlyValues" }
+        employees:
+          type: array
+          items: { $ref: "#/components/schemas/Advisor" }
+    Company:
+      type: object
+      additionalProperties: false
+      required: [id, name, values, branches]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        values: { $ref: "#/components/schemas/MonthlyValues" }
+        branches:
+          type: array
+          items: { $ref: "#/components/schemas/Branch" }
+    ClientsResponse:
+      type: object
+      additionalProperties: false
+      required: [months, company]
+      properties:
+        months:
+          description: The 12 months of every `values` array, as YYYY-MM
+          type: array
+          minItems: 12
+          maxItems: 12
+          items:
+            type: string
+            pattern: "^[0-9]{4}-(0[1-9]|1[0-2])$"
+        company: { $ref: "#/components/schemas/Company" }
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum: [not_found, internal]

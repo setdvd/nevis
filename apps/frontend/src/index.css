@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter/opsz.css';
+
+@plugin 'tailwindcss-react-aria-components';
+
+/* design tokens: provisional, verify against Figma */
+@theme {
+    --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+    --color-page: #f7f5ed;
+    --color-ink: #141413;
+    --color-series-existing: #b29df8;
+    --color-series-organic: #f4beb4;
+    --color-series-paid: #a75e6e;
+    --radius-card: 8px;
+    --container-content: 1408px;
+    --text-display: 35px;
+    --text-display--line-height: 43.75px;
+}
+
+body {
+    @apply bg-page text-ink font-sans text-sm tabular-nums lining-nums;
+}
