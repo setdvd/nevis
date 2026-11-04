@@ -23,7 +23,7 @@ You need [nvm](https://github.com/nvm-sh/nvm).
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm check`       | lint (0 warnings), format check, typecheck, unit tests in every package (137 tests)                                                                    |
 | `pnpm e2e:install` | installs Chromium for the browser tests, once per machine                                                                                              |
-| `pnpm check:e2e`   | builds the web app, starts the API (8787) and the preview (4173), runs 48 Playwright tests. The ports must be free, so stop `pnpm dev` first           |
+| `pnpm check:e2e`   | builds the web app, starts the API (8787) and the preview (4173), runs 49 Playwright tests. The ports must be free, so stop `pnpm dev` first           |
 | `pnpm storybook`   | every UI component and both cards in every load state, with the accessibility addon, on http://localhost:6006                                          |
 | `pnpm screenshots` | regenerates the pictures above                                                                                                                         |
 | `pnpm generate`    | regenerates types, client and mocks from `packages/api-contract/openapi.yaml`; `pnpm check:generated` fails when the committed generated code is stale |
@@ -81,6 +81,7 @@ I could not open the Figma file from my setup, so colours, spacing and sizes are
 - **Mismatched totals get a marker**, which the design does not have.
 - Every non-zero part of a bar is drawn **at least 4 px tall**, so 1-2 new clients are visible; the extra pixels come from the biggest part, so the bar keeps its true height. The tooltip and data table show the real numbers.
 - The legend is a plain list, **not clickable**: hiding a series would make bars shorter than their totals.
+- **Name column**: on wide screens it is as wide as the names (at least 240px, at most 320px of text; longer names end with "..."), so no name is cut today.
 - **375px**: the table scrolls inside its card with a sticky 160px name column (edge shadow while scrolled); long names end with "..." and show in full while the row has keyboard focus; the indent per level shrinks from 28 to 12px. The chart hides month labels that would overlap; every month stays in the tooltip and the data table.
 - Opened rows slide in; nothing animates with reduced motion.
 

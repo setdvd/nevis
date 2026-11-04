@@ -277,6 +277,31 @@ test.describe('hierarchy for assistive technology', () => {
     })
 })
 
+test.describe('wide screen', () => {
+    test('the name column fits the names, up to a cap, and gives the rest to the months', async ({
+        page,
+    }) => {
+        await openAt(page, 1440)
+        await row(page, 'Branch 1').click()
+        await row(page, 'Anna Blackwood').click()
+
+        const names = table(page).getByRole('rowheader')
+        const cut = await names.evaluateAll((cells) =>
+            cells.filter((cell) => {
+                const label = cell.querySelector('.truncate')
+                return label !== null && label.scrollWidth > label.clientWidth
+            })
+        )
+        expect(cut).toHaveLength(0)
+        const width = await names
+            .first()
+            .evaluate((cell) => cell.getBoundingClientRect().width)
+        // at least 240px, at most 320px content + 36px padding
+        expect(width).toBeGreaterThanOrEqual(240)
+        expect(width).toBeLessThanOrEqual(356)
+    })
+})
+
 test.describe('narrow screen (375px)', () => {
     test('only the table scrolls sideways, and opening a row does not scroll it', async ({
         page,

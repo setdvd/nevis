@@ -23,10 +23,16 @@ import './table.css'
 const FOCUS_RING =
     'outline-hidden focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus'
 
-// name column: fixed width, sticky on the left with a solid background, edge
-// shadow from table.css while scrolled sideways
+// Name column: sticky on the left with a solid background, edge shadow from
+// table.css while scrolled sideways. Wide screens: as wide as its names, at
+// least 240px, at most the cap in RowHeaderCell (browsers ignore max-width on
+// table cells); width 1px makes it shrink to that instead of taking a share of
+// the spare width, which goes to the month columns. Narrow screens: fixed 160px.
 const NAME_COLUMN =
-    'table-sticky sticky left-0 z-10 w-60 min-w-60 max-w-60 text-left max-sm:w-40 max-sm:min-w-40 max-sm:max-w-40'
+    'table-sticky sticky left-0 z-10 min-w-60 text-left sm:w-px max-sm:w-40 max-sm:min-w-40 max-sm:max-w-40'
+
+// widest the name cell's content may get on wide screens; longer names end with "..."
+const NAME_MAX = 'sm:max-w-80'
 
 const column = tv({
     base: `h-14 px-3 text-right font-normal whitespace-nowrap text-muted last:pe-6 ${FOCUS_RING}`,
@@ -86,7 +92,8 @@ export const TableScroller = ({ children }: TableScrollerProps) => {
     return (
         <div
             ref={ref}
-            className="table-scroller overflow-x-auto overscroll-x-contain scroll-ps-60 max-sm:scroll-ps-40"
+            // scroll padding = widest name column (content max 320 + 36 padding)
+            className="table-scroller overflow-x-auto overscroll-x-contain scroll-ps-[356px] max-sm:scroll-ps-40"
         >
             {children}
         </div>
@@ -226,7 +233,7 @@ export const RowHeaderCell = ({ label, leading }: RowHeaderCellProps) => (
     <AriaCell className={ROW_HEADER_CELL}>
         {({ level, hasChildItems, isExpanded }) => (
             <span
-                className="flex min-w-0 items-center gap-2"
+                className={`flex min-w-0 items-center gap-2 ${NAME_MAX}`}
                 style={{
                     paddingInlineStart: `calc(var(--tree-indent) * ${String(level - 1)})`,
                 }}
