@@ -1,24 +1,15 @@
-import type { ClientsResponse } from '@nevis/api-contract/model'
-import type { UseQueryResult } from '@tanstack/react-query'
+import type { Company } from '@nevis/api-contract/model'
 
-import { ClientsCard } from '../clients-card/clients-card'
+import { Card } from '../../../ui/card/card'
 import { ClientsTable } from '../clients-table/clients-table'
-import { ClientsTableSkeleton } from '../clients-table/clients-table-skeleton'
 
 export type TableCardProps = {
-    query: UseQueryResult<ClientsResponse>
-    onRetry: () => void
+    months: readonly string[]
+    company: Company
 }
 
-export const TableCard = ({ query, onRetry }: TableCardProps) => (
-    <ClientsCard
-        title="Clients table"
-        query={query}
-        onRetry={onRetry}
-        placeholder={<ClientsTableSkeleton />}
-    >
-        {({ months, company }) => (
-            <ClientsTable months={months} company={company} />
-        )}
-    </ClientsCard>
+export const TableCard = ({ months, company }: TableCardProps) => (
+    <Card title="Clients table">
+        <ClientsTable months={months} company={company} />
+    </Card>
 )

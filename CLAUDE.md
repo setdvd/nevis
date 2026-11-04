@@ -20,5 +20,6 @@ Plan, task split and target structure: [PLAN.md](PLAN.md). Brief: `requirements.
 - One folder per component, kebab-case files, named exports only, `type` not `interface`.
 - Tests and stories live next to the code (`*.test.ts`, `*.stories.tsx`).
 - Show stored values; never "fix" the data in the UI or the API.
+- Single responsibility: a data Loader only fetches and shows loading / error, then hands the data on (`children(data)`); render components take plain data props; state and side effects go into named hooks; a part with its own look gets its own component.
 - Load state: use TanStack Query types (`UseQueryResult`, `query.status`) directly; no own wrapper type like `Loadable`.
-- No `notReachable` / `assertNever` helpers: a `switch` over a union lists every case, no `default` (lint: `switch-exhaustiveness-check`).
+- Try to do single responsibility components like data Loader loads just data and show error state and loading, then separate components to render data, etc

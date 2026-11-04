@@ -41,7 +41,7 @@ Loading and error states by hand: open the `ChartCard` / `TableCard` stories, or
 
 pnpm workspace: `apps/backend` (Hono), `apps/frontend` (React 19, Vite, TanStack Query, react-aria-components, Tailwind 4, ECharts), `packages/api-contract` (OpenAPI -> orval: TS types, query client, MSW mocks), `packages/utils`.
 
-The frontend has three layers, enforced by ESLint: `ui/` is domain-free (Card, Button, Table, BarChart, ...), `features/clients/` maps the data to `ui/` props, `app/` composes the page. The cards take the TanStack Query result as is and switch on its `status`; one `ClientsCard` holds the pending / error / success logic for both. The plan, task split and every decision in detail: [PLAN.md](PLAN.md).
+The frontend has three layers, enforced by ESLint: `ui/` is domain-free (Card, Button, Table, BarChart, ...), `features/clients/` maps the data to `ui/` props, `app/` composes the page. Every component has one job: `ClientsLoader` is the only one that fetches and shows the loading and error states (taking the TanStack Query result as is) and hands the data to `ClientsDashboard`; the cards, the table and the chart only render the data they get; state and side effects sit in named hooks (`useExpandedRows`, `useDataIssues`, `useCategoryKeyboard`, ...). The plan, task split and every decision in detail: [PLAN.md](PLAN.md).
 
 ## Assumptions
 

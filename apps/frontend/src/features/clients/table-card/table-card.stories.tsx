@@ -1,43 +1,19 @@
+import { exampleResponse } from '@nevis/api-contract/example'
 import { clientsResponse } from '@nevis/api-contract/fixtures'
-import { fn } from 'storybook/test'
 
 import preview from '../../../../.storybook/preview'
-import { StoryQueryClient } from '../story-query/story-query-client'
-import { useStoryQuery } from '../story-query/use-story-query'
-import type { StoryQueryState } from '../story-query/use-story-query'
 
 import { TableCard } from './table-card'
 
-type TableCardStoryProps = {
-    state: StoryQueryState
-    onRetry: () => void
-}
-
-const TableCardWithQuery = ({ state, onRetry }: TableCardStoryProps) => (
-    <TableCard
-        query={useStoryQuery(state, clientsResponse)}
-        onRetry={onRetry}
-    />
-)
-
-// own client per story: states never leak between stories
-const TableCardStory = (props: TableCardStoryProps) => (
-    <StoryQueryClient>
-        <TableCardWithQuery {...props} />
-    </StoryQueryClient>
-)
-
-// typed: a plain object literal widens 'loaded' to string and the meta args get lost
-const defaultArgs: TableCardStoryProps = { state: 'loaded', onRetry: fn() }
-
 const meta = preview.meta({
-    component: TableCardStory,
-    args: defaultArgs,
+    component: TableCard,
+    args: { months: clientsResponse.months, company: clientsResponse.company },
 })
 
-export const Loading = meta.story({ args: { state: 'loading' } })
+// with the 7 totals that do not add up marked
+export const Delivered = meta.story({})
 
-export const Loaded = meta.story({})
-
-// the table card does not announce its error: the chart card does
-export const ServerError = meta.story({ args: { state: 'server-error' } })
+// every total adds up: no markers
+export const Consistent = meta.story({
+    args: { months: exampleResponse.months, company: exampleResponse.company },
+})

@@ -1,75 +1,44 @@
-import { useGetClients } from '@nevis/api-contract/client'
-import type { getClientsResponseSuccess } from '@nevis/api-contract/client'
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 
-import { ChartCard } from '../features/clients/chart-card/chart-card'
-import { TableCard } from '../features/clients/table-card/table-card'
+import { ClientsDashboard } from '../features/clients/clients-dashboard/clients-dashboard'
+import { ClientsLoader } from '../features/clients/clients-loader/clients-loader'
 import { Heading } from '../ui/heading/heading'
 import { Page } from '../ui/page/page'
 
-import { useDelayedFlag } from './use-delayed-flag'
-
-// stable reference: the query keeps the same select between renders
-const selectData = (response: getClientsResponseSuccess) => response.data
-
-// "Loading..." only for a load slower than this: a fast load announces nothing
-const LOADING_NOTICE_DELAY_MS = 1000
-
-export const DashboardPage = () => {
-    const query = useGetClients({ query: { select: selectData } })
-    const headingRef = useRef<HTMLHeadingElement>(null)
-    // set only by a successful Retry: the first load never says "loaded"
-    const [retryLoaded, setRetryLoaded] = useState(false)
-    const showLoadingNotice = useDelayedFlag(
-        query.status === 'pending',
-        LOADING_NOTICE_DELAY_MS
-    )
-
-    // Focus goes to the heading first: the Retry button disappears while
-    // loading, and focus would otherwise drop to the page start. The heading is
-    // focusable only until focus leaves it; set on the element directly, so the
-    // heading needs no React handler (it is not an interactive element).
-    const retry = () => {
-        setRetryLoaded(false)
-        const heading = headingRef.current
-        if (heading !== null) {
-            heading.tabIndex = -1
-            heading.addEventListener(
-                'blur',
-                () => {
-                    heading.removeAttribute('tabindex')
-                },
-                { once: true }
-            )
-            heading.focus()
-        }
-        void query.refetch().then((result) => {
-            setRetryLoaded(result.status === 'success')
-        })
+// Focus goes to the heading when Retry starts: the Retry button disappears
+// while loading, and focus would otherwise drop to the page start. The heading
+// is focusable only until focus leaves it; set on the element directly, so it
+// needs no React handler (it is not an interactive element).
+const focusUntilBlur = (element: HTMLElement | null) => {
+    if (element === null) {
+        return
     }
+    element.tabIndex = -1
+    element.addEventListener(
+        'blur',
+        () => {
+            element.removeAttribute('tabindex')
+        },
+        { once: true }
+    )
+    element.focus()
+}
 
-    const statusText = showLoadingNotice
-        ? 'Loading clients...'
-        : retryLoaded
-          ? 'Clients loaded'
-          : ''
-
+// page layout: heading, then the clients content once loaded
+export const DashboardPage = () => {
+    const headingRef = useRef<HTMLHeadingElement>(null)
     return (
         <Page>
             <Heading level={1} ref={headingRef}>
                 Clients
             </Heading>
-            <div
-                aria-busy={query.status === 'pending'}
-                className="flex flex-col gap-4"
+            <ClientsLoader
+                onRetry={() => {
+                    focusUntilBlur(headingRef.current)
+                }}
             >
-                <ChartCard query={query} onRetry={retry} />
-                <TableCard query={query} onRetry={retry} />
-            </div>
-            {/* after the cards and outside aria-busy, so it is announced */}
-            <p role="status" className="sr-only">
-                {statusText}
-            </p>
+                {(data) => <ClientsDashboard data={data} />}
+            </ClientsLoader>
         </Page>
     )
 }

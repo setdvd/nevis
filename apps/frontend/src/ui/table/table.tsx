@@ -1,6 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import type { ReactElement, ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import {
     Cell as AriaCell,
     Collection,
@@ -14,6 +14,7 @@ import type { Key } from 'react-aria-components'
 import { tv } from 'tailwind-variants/lite'
 
 import './table.css'
+import { useNoArrowScroll } from './use-no-arrow-scroll'
 
 // Tree table on react-aria-components: role treegrid, aria-level per row,
 // aria-expanded only on rows with children, Right / Left open and close,
@@ -68,26 +69,7 @@ export type TableScrollerProps = {
 // month cell is scrolled clear of the sticky name column.
 export const TableScroller = ({ children }: TableScrollerProps) => {
     const ref = useRef<HTMLDivElement>(null)
-
-    // Left / Right inside the table open, close or move focus (RAC), and RAC
-    // scrolls a focused cell into view itself. Without this, the browser also
-    // scrolls the box 40px on every Right that opens a row. Set on the element:
-    // a plain div gets no React key handler (jsx-a11y).
-    useEffect(() => {
-        const scroller = ref.current
-        if (scroller === null) {
-            return undefined
-        }
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-                event.preventDefault()
-            }
-        }
-        scroller.addEventListener('keydown', onKeyDown)
-        return () => {
-            scroller.removeEventListener('keydown', onKeyDown)
-        }
-    }, [])
+    useNoArrowScroll(ref)
 
     return (
         <div

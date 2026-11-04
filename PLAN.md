@@ -77,17 +77,17 @@ Web component tree:
 main.tsx
 └─ AppErrorBoundary                      "Something went wrong." + Reload
    └─ Providers                          QueryClient defaults
-      └─ DashboardPage                   owns query, retry focus, sr status line
-         ├─ ChartCard  { query, onRetry }   switch (query.status)
-         │    ├─ ClientsChartSkeleton
-         │    ├─ LoadError (role=alert, the only alert on the page)
-         │    └─ ClientsChart { months, company }
-         │         └─ ui/BarChart { categories, series, yAxis, labels }  (+ Legend, + sr-only data table)
-         └─ TableCard  { query, onRetry }
-              ├─ ClientsTableSkeleton
-              ├─ LoadError
-              └─ ClientsTable { months, company }
-                   └─ ui/Table (RAC treegrid): Table, TableHeader, Column, TableBody, Row, Cell, RowHeaderCell, TreeCellContent
+      └─ DashboardPage                   layout: Page, Heading; focuses the heading when Retry starts
+         └─ ClientsLoader { onRetry, children: (data) => ReactNode }
+              │                          the only fetcher: useGetClients, aria-busy, status line, Retry
+              ├─ pending -> ClientsLoading      both cards with skeletons
+              ├─ error   -> ClientsLoadError    both cards with LoadError (chart card's is the alert)
+              └─ success -> ClientsDashboard { data }
+                   ├─ ChartCard { months, company }  -> ClientsChart (maps data) -> ui/BarChart
+                   │                                    BarChart = BarChartPlot + useCategoryKeyboard + Legend + sr table
+                   └─ TableCard { months, company }  -> ClientsTable (renders rows)
+                                                        + useExpandedRows, useDataIssues, MismatchValue
+                                                        -> ui/Table (RAC treegrid) + useNoArrowScroll
 ```
 
 Key types and component APIs (draft):
@@ -181,37 +181,46 @@ nevis/
             ├── index.css      (P0)  Tailwind + design tokens (@theme)
             ├── app/
             │   ├── providers.tsx          QueryClient defaults
-            │   ├── dashboard-page.tsx     heading, cards, aria-busy, status line, retry
-            │   ├── app-error-boundary.tsx
-            │   └── use-delayed-flag.ts    "Loading clients..." only after 1 s
+            │   ├── dashboard-page.tsx     layout: heading + ClientsLoader + ClientsDashboard
+            │   └── app-error-boundary.tsx
             ├── features/clients/
             │   ├── describe-load-error.ts (+test)   timeout / network / server (status) / invalid data
             │   ├── data-issues.ts (+test)          findDataIssues: sum mismatches, missing channels (FE for now, see decision 11)
-            │   ├── chart-card/chart-card.tsx (+stories)
-            │   ├── table-card/table-card.tsx (+stories)
+            │   ├── clients-loader/
+            │   │   ├── clients-loader.tsx       fetches; loading / error / children(data); busy, status line, Retry
+            │   │   ├── clients-loading.tsx (+stories)
+            │   │   ├── clients-load-error.tsx (+stories)
+            │   │   └── use-delayed-flag.ts      "Loading clients..." only after 1 s
+            │   ├── clients-dashboard/clients-dashboard.tsx   the loaded content: both cards from data
+            │   ├── chart-card/chart-card.tsx (+stories)      Card + ClientsChart, data props only
+            │   ├── table-card/table-card.tsx (+stories)      Card + ClientsTable, data props only
             │   ├── clients-chart/
             │   │   ├── clients-chart.tsx (+stories)
             │   │   ├── clients-chart-skeleton.tsx
             │   │   └── chart-series.ts (+test)      company -> series (THE data-to-chart mapping)
             │   └── clients-table/
-            │       ├── clients-table.tsx (+stories)
+            │       ├── clients-table.tsx        renders the rows
+            │       ├── use-expanded-rows.ts     open / closed state (transition)
+            │       ├── use-data-issues.ts       mismatch lookup + dev warnings
+            │       ├── mismatch-value.tsx       marked stored value
             │       ├── clients-table-skeleton.tsx
-            │       └── table-tree.ts (+test)        company -> uniform tree, collapseKeys
+            │       └── table-tree.ts (+test)        company -> uniform tree, collapseKeys, nextExpanded
             └── ui/                  one folder per component, each with *.stories.tsx
                 ├── avatar/          photo (src) with initials + tint fallback (+ helpers test)
-                ├── bar-chart/       ECharts stacked bars, legend, sr data table, keyboard stepping
+                ├── bar-chart/       BarChart = BarChartPlot (ECharts) + useCategoryKeyboard + legend + sr data table; pure bar-chart-model
                 ├── button/
                 ├── card/            white surface, region named by an sr-only h2
                 ├── heading/         Heading levels 1-3
                 ├── load-error/      message + Retry, role=alert opt-in
                 ├── page/            Page: the <main> container, max width, gutters
                 ├── skeleton/        aria-hidden, motion-safe pulse
-                └── table/           RAC tree table wrappers, sticky name column, chevron
+                └── table/           RAC tree table wrappers, sticky name column, chevron, useNoArrowScroll
 ```
 
 Conventions: kebab-case file names, one folder per component, named exports only (no default exports, lint rule), `type` instead of `interface`, alphabetized imports, no import cycles, colocated tests (`*.test.ts`) and stories (`*.stories.tsx`).
 
 - **Load state uses TanStack Query types only** (`UseQueryResult`, `query.status`, `query.data`, `query.error`). No own wrapper type such as `Loadable`.
+- **Single responsibility** (review note, applied to all components): a data Loader (`ClientsLoader`) only fetches and shows loading / error; render components (cards, table, chart) take plain data props; state and side effects live in named hooks (`useExpandedRows`, `useDataIssues`, `useCategoryKeyboard`, `useNoArrowScroll`, `useDelayedFlag`); a part with its own look gets its own component (`MismatchValue`, `BarChartPlot`). Stories therefore need no network or query client.
 - **No `notReachable` / `assertNever` helpers.** A `switch` over a union lists every case and has no `default`; `@typescript-eslint/switch-exhaustiveness-check` reports a missing case.
 
 ## 5. Data contract
@@ -300,7 +309,7 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 ### Phase 4: Dashboard shell and load states (0.75 h), done
 
 - [x] T4.1 `Providers`: QueryClient defaults from decision 8 (`staleTime: Infinity`, `retry: 1`, `retryDelay: 500`, `networkMode: 'always'`, no refetch on focus / reconnect), built by `createQueryClient()`; one client per `Providers` instance.
-- [x] T4.2 `DashboardPage`: `h1` "Clients"; `ChartCard` + `TableCard` get `query` (`UseQueryResult<ClientsResponse>` from `useGetClients` with a stable `select`) + `onRetry`. Both are thin compositions of one `features/clients/clients-card` (`title`, `query`, `onRetry`, `announceError`, `placeholder`, `children: (data) => ReactNode`), so the load-state switch lives in one place. Chart and table content are stand-ins until Phases 5 / 6 (`TODO(Phase 5/6)`); skeletons have approximate heights for now; card area `aria-busy` while pending; sr-only status line after the cards ("Loading clients..." after 1 s; "Clients loaded" after a successful Retry).
+- [x] T4.2 `DashboardPage`: `h1` "Clients"; `ChartCard` + `TableCard` get `query` (`UseQueryResult<ClientsResponse>` from `useGetClients` with a stable `select`) + `onRetry`. Both are thin compositions of one `features/clients/clients-card` (`title`, `query`, `onRetry`, `announceError`, `placeholder`, `children: (data) => ReactNode`), so the load-state switch lives in one place. Chart and table content are stand-ins until Phases 5 / 6 (`TODO(Phase 5/6)`); skeletons have approximate heights for now; card area `aria-busy` while pending; sr-only status line after the cards ("Loading clients..." after 1 s; "Clients loaded" after a successful Retry). **Restructured later (single-responsibility review):** `ClientsLoader` now owns the query, load states, busy, status line and Retry; `ClientsCard` and the story query helpers are gone; cards take data.
 - [x] T4.3 `describeLoadError`: "The request timed out." / "Network error." / "Server error (500)." / "The data was not valid." (non-JSON 2xx only); exactly one `role="alert"` (chart card).
 - [x] T4.4 Retry moves focus to the heading first (the button disappears while loading). The heading gets `tabindex=-1` only until focus leaves it, set on the element directly (jsx-a11y: no handlers on a non-interactive element).
 - [x] T4.5 `AppErrorBoundary`: "Something went wrong." + Reload.
