@@ -97,7 +97,7 @@ Key types and component APIs (draft):
 import type { UseQueryResult } from '@tanstack/react-query'
 
 type CardProps = {
-    query: UseQueryResult<ClientsResponse, Error> // switch (query.status): 'pending' | 'error' | 'success'
+    query: UseQueryResult<ClientsResponse> // Error is the default error type; switch (query.status)
     onRetry: () => void
 }
 type ClientsTableProps = { months: readonly string[]; company: Company }
@@ -294,14 +294,15 @@ Done when: `pnpm dev` starts both apps and the page shows the "Clients" heading.
 - [x] Tests (20): avatar initials (incl. decomposed accents), tint stable / from palette / varied across the advisor ids, ink on every tint >= 4.5:1; design-token contrast. `frontend` test script no longer passes without tests.
 - [x] Checked in Chromium (Playwright, static Storybook build): axe finds no violations in any story; focus ring on keyboard focus only (normal) and on focus (forced colours); skeleton not animated with reduced motion; one alert only when `announce` is set; card found as region by its title.
 
-### Phase 4: Dashboard shell and load states (0.75 h)
+### Phase 4: Dashboard shell and load states (0.75 h), done
 
-- [ ] T4.1 `Providers`: QueryClient defaults from decision 8 (`staleTime: Infinity`, `retry: 1`, `retryDelay: 500`, `networkMode: 'always'`).
-- [ ] T4.2 `DashboardPage`: `h1` "Clients"; `ChartCard` + `TableCard` get `query` (`UseQueryResult<ClientsResponse, Error>` from `useGetClients`) + `onRetry`; card area `aria-busy` while pending; sr-only status line after the cards ("Loading clients..." after 1 s; "Clients loaded" after a successful Retry).
-- [ ] T4.3 `describeLoadError`: "The request timed out." / "Network error." / "Server error (500)." / "The data was not valid." (non-JSON 2xx only); exactly one `role="alert"` (chart card).
-- [ ] T4.4 Retry moves focus to the heading first (the button disappears while loading).
-- [ ] T4.5 `AppErrorBoundary`: "Something went wrong." + Reload.
-- [ ] Tests: `describeLoadError` unit; card stories for Loading / Failed / Loaded, each getting a real query result from a story `QueryClient` (pending / rejected / `initialData`; no network).
+- [x] T4.1 `Providers`: QueryClient defaults from decision 8 (`staleTime: Infinity`, `retry: 1`, `retryDelay: 500`, `networkMode: 'always'`, no refetch on focus / reconnect), built by `createQueryClient()`; one client per `Providers` instance.
+- [x] T4.2 `DashboardPage`: `h1` "Clients"; `ChartCard` + `TableCard` get `query` (`UseQueryResult<ClientsResponse>` from `useGetClients` with a stable `select`) + `onRetry`. Both are thin compositions of one `features/clients/clients-card` (`title`, `query`, `onRetry`, `announceError`, `placeholder`, `children: (data) => ReactNode`), so the load-state switch lives in one place. Chart and table content are stand-ins until Phases 5 / 6 (`TODO(Phase 5/6)`); skeletons have approximate heights for now; card area `aria-busy` while pending; sr-only status line after the cards ("Loading clients..." after 1 s; "Clients loaded" after a successful Retry).
+- [x] T4.3 `describeLoadError`: "The request timed out." / "Network error." / "Server error (500)." / "The data was not valid." (non-JSON 2xx only); exactly one `role="alert"` (chart card).
+- [x] T4.4 Retry moves focus to the heading first (the button disappears while loading). The heading gets `tabindex=-1` only until focus leaves it, set on the element directly (jsx-a11y: no handlers on a non-interactive element).
+- [x] T4.5 `AppErrorBoundary`: "Something went wrong." + Reload.
+- [x] Tests: `describeLoadError` unit (9); card stories (10: chart card Loading / Loaded / ServerError / Timeout / NetworkError / InvalidData / UnknownError, table card Loading / Loaded / ServerError), each with a real query result from its own story `QueryClient` (pending / rejected / `initialData` with `staleTime: Infinity`; no network).
+- [x] Checked in Chromium on the production build + real API (Playwright request interception for the failures): loaded (1 request, May 301, no alert, not busy); slow load (busy at once, skeletons in both cards, "Loading clients..." only after 1 s, nothing announced after the first load); 0.4 s load never announces loading; 500 -> exactly 2 requests, both cards show "Server error (500).", one alert, in the chart card; Retry (from either card) -> focus on `h1`, skeletons, then "Clients loaded", `h1` not focusable after Tab; network error; non-JSON 200; offline Retry -> loading then "Network error." (no pause); both attempts hanging -> "The request timed out." after 21 s; render crash -> fallback, Reload loads again; axe clean in loading / error / loaded at 375 and 1440 px, no page-level sideways scroll. Known: a 502 with an HTML body shows "The data was not valid." (T1.4 limit).
 
 ### Phase 5: Clients table (2 h), core
 
